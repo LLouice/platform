@@ -129,7 +129,7 @@ fn parse_line<S: AsRef<str>>(
             return Ok(res);
         } else {
             if let (Some(head), Some(rel), Some(tail)) = (res.get(0), res.get(1), res.get(2)) {
-                writeln!(err_not_triple_file, "{}\t{}\t{}", head, rel, tail)?;
+                writeln!(err_not_valid_file, "{}\t{}\t{}", head, rel, tail)?;
                 error!("{}\t{}\t{}", head, rel, tail);
             }
         }

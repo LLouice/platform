@@ -1,0 +1,227 @@
+* Type
+** "rdf-schema#subClassOf",
+   #+begin_src text
+     2:#疾病 rdf-schema#subClassOf      owl#Thing
+     4:#症状 rdf-schema#subClassOf      owl#Thing
+     6:#科室 rdf-schema#subClassOf      owl#Thing
+     8:#检查 rdf-schema#subClassOf      owl#Thing
+     10:#药品        rdf-schema#subClassOf      owl#Thing
+     12:#中药        rdf-schema#subClassOf      #药品
+     14:#西药        rdf-schema#subClassOf      #药品
+     16:#中医症状      rdf-schema#subClassOf      #症状
+     18:#西医症状      rdf-schema#subClassOf      #症状
+   #+end_src
+** "owl#sameAs",
+   #+begin_src text
+     245236:急性发热性嗜中性白细胞增多性皮肤病或隆起性红斑        owl#sameAs 斯威特氏综合征
+     245237:酞咪脉啶酮,沙利窦迈,撒利多胺        owl#sameAs 撒利多胺
+     245238:新达罗颗粒剂,头孢克洛颗粒剂 owl#sameAs 头孢克洛颗粒剂
+     245239:先天性红细胞生成不良性贫血,遗传性良性网织红细胞增生性贫血  owl#sameAs 先天性红细胞生成不良性贫血
+     245240:上气     owl#sameAs 气喘,喘逆,喘促
+     245241:野蜀葵    owl#sameAs 三叶
+     245242:妊娠试验   owl#sameAs 尿HCG
+     245243:老年人慢性肾衰竭       owl#sameAs 老年人慢性肾功能衰竭
+     245244:小儿主动脉弓综合征      owl#sameAs 小儿高安氏动脉炎
+     245245:晶      owl#sameAs 晶状体诱导的葡萄膜炎
+     245246:小儿房中隔缺损        owl#sameAs 小儿房缺
+     245247:斯欧蜜    owl#sameAs 火府丸
+     245248:疔      owl#sameAs 外阴疖
+     245249:海冻菜,红丝 owl#sameAs 红丝
+     245250:绿萼梅,绿梅花        owl#sameAs 白梅花
+   #+end_src
+
+** *"22-rdf-syntax-ns#type"*,
+
+** "X rdf-schema#label",
+   #+begin_src text
+     200746:雌二醇地屈孕酮片复合包装   rdf-schema#label   雌二醇地屈孕酮片复合包装"@Z
+     204680:肾微粒体抗体测定       rdf-schema#label   肾微粒体抗体测定"@Z
+     208670:雌二醇地屈孕酮片复合包装)  rdf-schema#label   雌二醇地屈孕酮片复合包装)"@Z
+     209788:1.2型   rdf-schema#label   1.2型"@Z
+     210669:中毒性表皮坏死松解型药疹   rdf-schema#label   中毒性表皮坏死松解型药疹"@Z
+     213265:地塞米松眼膏)        rdf-schema#label   地塞米松眼膏)"@Z
+     213735:S)型    rdf-schema#label   S)型"@Z
+     214565:粒*100粒*5瓶      rdf-schema#label   粒*100粒*5瓶"@Z
+     214825:长链脂肪乳注射液(C8～24Ve)      rdf-schema#label   长链脂肪乳注射液(C8～24Ve)"@Z
+     216010:氢氯噻嗪片  rdf-schema#label   氢氯噻嗪片"@Z
+     217294:克拉维酸钾片 rdf-schema#label   克拉维酸钾片"@Z
+     218617:盒包TYS  rdf-schema#label   盒包TYS"@Z
+     221118:30(精蛋白锌重组人胰岛素混合注射液)    rdf-schema#label   30(精蛋白锌重组人胰岛素混合注射液)"@Z
+     224908:粒))    rdf-schema#label   粒))"@Z
+     225809:三氯生乳膏  rdf-schema#label   三氯生乳膏"@Z
+     228247:地塞米松眼膏 rdf-schema#label   地塞米松眼膏"@Z
+     228794:甲氧苄啶   rdf-schema#label   甲氧苄啶"@Z
+   #+end_src
+** "X rdf-schema#domain",
+   #+begin_src text
+     20:#症状相关症状    rdf-schema#domain  #症状
+     23:#症状相关疾病    rdf-schema#domain  #症状
+     26:#症状相关药品    rdf-schema#domain  #症状
+     29:#症状相关科室    rdf-schema#domain  #症状
+     32:#症状相关检查    rdf-schema#domain  #症状
+     35:#症状相关部位    rdf-schema#domain  #症状
+     38:#疾病相关症状    rdf-schema#domain  #疾病
+     41:#疾病相关疾病    rdf-schema#domain  #疾病
+     44:#疾病相关药品    rdf-schema#domain  #疾病
+     47:#疾病相关科室    rdf-schema#domain  #疾病
+     50:#疾病相关检查    rdf-schema#domain  #疾病
+     53:#疾病相关部位    rdf-schema#domain  #疾病
+     56:#检查相关症状    rdf-schema#domain  #检查
+     59:#检查相关疾病    rdf-schema#domain  #检查
+     62:#检查相关科室    rdf-schema#domain  #检查
+     65:#检查相关检查    rdf-schema#domain  #检查
+     68:#检查相关部位    rdf-schema#domain  #检查
+   #+end_src
+** "X rdf-schema#range",
+   #+begin_src text
+     21:#症状相关症状    rdf-schema#range   #症状
+     24:#症状相关疾病    rdf-schema#range   #疾病
+     27:#症状相关药品    rdf-schema#range   #药品
+     30:#症状相关科室    rdf-schema#range   #科室
+     33:#症状相关检查    rdf-schema#range   #检查
+     36:#症状相关部位    rdf-schema#range   rdf-schema#Literal
+     39:#疾病相关症状    rdf-schema#range   #症状
+     42:#疾病相关疾病    rdf-schema#range   #疾病
+     45:#疾病相关药品    rdf-schema#range   #药品
+     48:#疾病相关科室    rdf-schema#range   #科室
+     51:#疾病相关检查    rdf-schema#range   #检查
+     54:#疾病相关部位    rdf-schema#range   rdf-schema#Literal
+     57:#检查相关症状    rdf-schema#range   #症状
+     60:#检查相关疾病    rdf-schema#range   #疾病
+     63:#检查相关科室    rdf-schema#range   #科室
+     66:#检查相关检查    rdf-schema#range   #检查
+     69:#检查相关部位    rdf-schema#range   rdf-schema#Literal
+   #+end_src
+
+
+** "X 症状相关药品", just a little, not include in triples due to # in there
+** "X 疾病相关药品",  just a little, not include in triples due to # in there
+* Triples
+ 27915
+ 17
+ 52146
+  {
+      "检查相关症状",
+      "疾病相关疾病",
+      "疾病相关症状",
+      "检查相关部位",
+      "症状相关部位",
+      "症状相关症状",
+      "症状相关科室",
+      "症状相关疾病",
+      "症状相关检查",
+      "疾病相关检查",
+      "疾病相关部位",
+      "疾病相关药品",
+      "检查相关检查",
+      "检查相关疾病",
+      "疾病相关科室",
+      "症状相关药品",
+      "检查相关科室",
+  }
+
+ togs_head: 687
+ togs_tail: 1385
+* Rel
+      "检查相关症状",=> 检查后遗症
+      "症状相关检查", => 检查
+
+
+      区分性不大 后者质量更差
+      "疾病相关检查",
+      "检查相关疾病",
+* Todo
+     *症状 - 推测 -> 疾病
+            -> 科室*
+
+* split to cats
+** 症状
+  症状相关部位
+  症状相关症状
+  症状相关科室
+  症状相关疾病
+  症状相关检查
+  症状相关药品
+  all: 200043
+  unique: 10894
+
+
+            *
+
+** 疾病
+  疾病相关疾病
+  疾病相关症状
+  疾病相关检查
+  疾病相关部位
+  疾病相关药品
+  疾病相关科室
+  all: 359438
+  unique: 14664
+** 检查
+  检查相关症状
+  检查相关部位
+  检查相关检查
+  检查相关疾病
+  检查相关科室
+  all: 45217
+  unique: 2361
+** 部位
+  检查相关部位
+  症状相关部位
+  疾病相关部位
+  all: 17274
+  unique: 111
+** 药品
+  疾病相关药品
+  症状相关药品
+  all: 109246
+  unique: 14277
+** 科室
+  症状相关科室
+  疾病相关科室
+  检查相关科室
+  all: 70040
+  unique: 291
+
+* Nebula
+** SPACE
+   CREATE SPACE [IF NOT EXISTS] <graph_space_name>
+       [(partition_num = <partition_number>,
+       replica_factor = <replica_number>,
+       vid_type = {FIXED_STRING(<N>)) | INT64}];
+
+** Create TAG and EDGE
+   CREATE {TAG | EDGE} {<tag_name> | <edge_type>}(<property_name> <data_type>
+      [, <property_name> <data_type> ...]);
+
+** Insert vertices and edges
+   INSERT VERTEX <tag_name> (<property_name>[, <property_name>...])
+    [, <tag_name> (<property_name>[, <property_name>...]), ...]
+    {VALUES | VALUE} <vid>: (<property_value>[, <property_value>...])
+    [, <vid>: (<property_value>[, <property_value>...];
+
+    INSERT EDGE <edge_type> (<property_name>[, <property_name>...])
+      {VALUES | VALUE} <src_vid> -> <dst_vid>[@<rank>] : (<property_value>[, <property_value>...])
+      [, <src_vid> -> <dst_vid>[@<rank> : (<property_name>[, <property_name>...]), ...]
+
+** GO
+   GO [[<M> TO] <N> STEPS ] FROM <vertex_list>
+    OVER <edge_type_list> [REVERSELY] [BIDIRECT]
+    [WHERE <expression> [AND | OR expression ...])]
+    YIELD [DISTINCT] <return_list>
+
+** FETCH
+    FETCH PROP ON {<tag_name> | <tag_name_list> | *} <vid_list>
+    [YIELD [DISTINCT] <return_list>]
+
+    FETCH PROP ON <edge_type> <src_vid> -> <dst_vid>[@<rank>]
+    [, <src_vid> -> <dst_vid> ...]
+    [YIELD [DISTINCT] <return_list>]
+
+** LOOKUP
+    LOOKUP ON {<tag_name> | <edge_type>}
+    WHERE <expression> [AND expression ...])]
+    [YIELD <return_list>]
+
+** MATCH
+    MATCH <pattern> [<WHERE clause>] RETURN <output>
