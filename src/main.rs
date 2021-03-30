@@ -37,6 +37,12 @@ async fn get_out_links(web::Query(node_info): web::Query<NodeInfo>) -> Result<Ht
     Ok(res)
 }
 
+#[get("/get_stats")]
+async fn get_stats() -> HttpResponse {
+    let res = Kg::convert_stat(Kg::stat().await).await;
+    HttpResponse::Ok().json(res)
+}
+
 #[get("/demo")]
 async fn demo() -> Result<fs::NamedFile> {
     Ok(fs::NamedFile::open("static/html/demo.html")?.set_status_code(StatusCode::OK))
@@ -55,6 +61,7 @@ async fn main() -> std::io::Result<()> {
             .service(Files::new("/static", "static").show_files_listing())
             .service(demo)
             .service(get_out_links)
+            .service(get_stats)
             .service(web::resource("/index.html").to(|| async { "Hello world!" }))
             .service(web::resource("/").to(index))
     })

@@ -91,13 +91,17 @@ impl Kg {
                 des,
                 50,
                 cats.get(&x.label)
-                    .expect(format!("key {:?} not exists in cats", x.label).as_str())
+                    // .expect(format!("key {:?} not exists in cats", x.label).as_str())
+                    .ok_or_else(|| {
+                        let err_msg = format!("key {:?} not exists in cats", x.label);
+                        anyhow!(err_msg)
+                    })?
                     .to_owned(),
             );
             nodes.push(node);
 
-            // let link = Link::new(name.to_owned(), x.name.clone());
-            let link = Link::new("0".to_owned(), format!("{}", idx));
+            // let link = Link::new(name.to_owned(), x.);
+            let link = Link::new("0".to_owned(), format!("{}", idx + 1));
             links.push(link);
         }
         Ok(GraphData {
@@ -108,27 +112,172 @@ impl Kg {
     }
 }
 
-/*
+#[derive(Default, Debug)]
+pub struct Stats {
+    pub type_name: String,
+    pub count: usize,
+    pub area: usize,
+    pub check: usize,
+    pub department: usize,
+    pub drug: usize,
+    pub disease: usize,
+    pub symptom: usize,
+}
 
-def get_nodes(self, node_types=None, limit=-1):
-assert node_types is not None, "please specify the node_types"
-node_types = listify(node_types)
-nodes = [[] for _ in node_types]
+impl Stats {
+    pub fn new(type_name: String) -> Self {
+        Stats {
+            type_name,
+            ..Default::default()
+        }
+    }
+}
 
-def _fn(cur, group):
-nodes[group].append(dict(id=cur.current["p"]["name"], group=group))
+impl Kg {
+    async fn node_num(graph: &Graph, src_type: &str) -> usize {
+        let cypher = format!("match (ps:{}) return count(ps) as num", src_type);
+        let mut result = graph
+            .execute(query(cypher.as_str()))
+            .await
+            .expect("graph execute error");
+        if let Ok(Some(row)) = result.next().await {
+            return row.get::<i64>("num").unwrap() as usize;
+        }
+        0
+    }
 
-if node_types:
-for idx, node_type in enumerate(node_types):
-_cypher = self.match_cypher.format(node_type=node_type)
-if limit > 0:
-_cypher += f" limit {limit}"
-self.run_cypher(_cypher, cb=_fn, group=idx)
-# 展开嵌套列表
-all_nodes = flat(nodes)
-if limit > 0:
-# limit * len(node_types) -> limit
-# 随机 sample
-all_nodes = random.sample(all_nodes, limit)
-return all_nodes
-*/
+    async fn targ_num(graph: &Graph, src_type: &str, targ_type: &str) -> usize {
+        let cypher = format!(
+            "match (ps:{})-[r]-> (pt:{}) return count(pt) as num",
+            src_type, targ_type
+        );
+        let mut result = graph
+            .execute(query(cypher.as_str()))
+            .await
+            .expect("graph execute error");
+        if let Ok(Some(row)) = result.next().await {
+            return row.get::<i64>("num").unwrap() as usize;
+        }
+        0
+    }
+
+    pub async fn stat() -> Vec<Stats> {
+        let graph = init_graph().await;
+        // get node num
+        let mut stats = vec![];
+        for src_type in &["Symptom", "Disease", "Check"] {
+            let mut s = Stats::new(src_type.to_string());
+
+            let count = Self::node_num(&graph, src_type).await;
+            println!("{}", count);
+            s.count = count;
+
+            for targ_type in &["Area", "Check", "Department", "Drug", "Disease", "Symptom"] {
+                let count = Self::targ_num(&graph, src_type, targ_type).await;
+                match *targ_type {
+                    "Area" => s.area = count,
+                    "Check" => s.check = count,
+                    "Department" => s.department = count,
+                    "Drug" => s.drug = count,
+                    "Disease" => s.disease = count,
+                    "Symptom" => s.symptom = count,
+                    _ => unreachable!(),
+                }
+            }
+            stats.push(s);
+        }
+        stats
+    }
+
+    pub async fn convert_stat(stats: Vec<Stats>) -> PieData {
+        let mut nodes_pie = vec![];
+        let mut rels_pie = vec![];
+        let mut sym_pie = vec![];
+        let mut dis_pie = vec![];
+        let mut check_pie = vec![];
+
+        // All nodes stat
+        let graph = init_graph().await;
+        for src_type in &["Symptom", "Disease", "Check", "Area", "Department", "Drug"] {
+            let count = Self::node_num(&graph, src_type).await;
+            nodes_pie.push(Pie::new(src_type, count as f64));
+        }
+
+        // sym dis check Stat and aggr all rels
+        for s in stats {
+            let name = s.type_name;
+            // nodes_pie.push(Pie::new(name, s.count as f64));
+            let the_pie = match name.as_str() {
+                "Symptom" => &mut sym_pie,
+                "Disease" => &mut dis_pie,
+                "Check" => &mut check_pie,
+                _ => unreachable!(),
+            };
+            if s.area > 0 {
+                the_pie.push(Pie::new("Area", s.area as f64));
+                rels_pie.push(Pie::new(format!("{} > {}", name, "Area"), s.area as f64));
+            }
+
+            if s.check > 0 {
+                the_pie.push(Pie::new("Check", s.check as f64));
+                rels_pie.push(Pie::new(format!("{} > {}", name, "Check"), s.check as f64));
+            }
+            if s.department > 0 {
+                the_pie.push(Pie::new("Department", s.department as f64));
+                rels_pie.push(Pie::new(
+                    format!("{} > {}", name, "Department"),
+                    s.department as f64,
+                ));
+            }
+            if s.drug > 0 {
+                the_pie.push(Pie::new("Drug", s.drug as f64));
+                rels_pie.push(Pie::new(format!("{} > {}", name, "Drug"), s.drug as f64));
+            }
+            if s.disease > 0 {
+                the_pie.push(Pie::new("Disease", s.disease as f64));
+                rels_pie.push(Pie::new(
+                    format!("{} > {}", name, "Disease"),
+                    s.disease as f64,
+                ));
+            }
+            if s.symptom > 0 {
+                the_pie.push(Pie::new("Symptom", s.symptom as f64));
+                rels_pie.push(Pie::new(
+                    format!("{} > {}", name, "Symptom"),
+                    s.symptom as f64,
+                ));
+            }
+        }
+        PieData {
+            nodes_pie,
+            rels_pie,
+            sym_pie,
+            dis_pie,
+            check_pie,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct Pie {
+    name: String,
+    value: f64,
+}
+
+impl Pie {
+    fn new<S: ToString>(name: S, value: f64) -> Self {
+        let name = name.to_string();
+        Pie { name, value }
+    }
+}
+
+pub type Pies = Vec<Pie>;
+
+#[derive(Debug, Serialize)]
+pub struct PieData {
+    nodes_pie: Pies,
+    rels_pie: Pies,
+    sym_pie: Pies,
+    dis_pie: Pies,
+    check_pie: Pies,
+}
