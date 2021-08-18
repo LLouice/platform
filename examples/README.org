@@ -225,3 +225,32 @@
 
 ** MATCH
     MATCH <pattern> [<WHERE clause>] RETURN <output>
+
+* Neo4j
+
+** create relation
+   #+begin_src text
+   match (s:Symptom{name: "血压过低"}) delete s;
+   #+end_src
+
+   #+begin_src text
+     MATCH (a:Person),(b:Movie)
+     WHERE a.name = 'Tom Hanks' AND b.title = 'Forrest Gump'
+     CREATE (a)-[r:ACTED_IN { roles:['Forrest'] }]->(b)
+     RETURN r;
+
+     MATCH(s:Symptom), (a:Area) WHERE s.name=$sname AND a.name=$aname
+         CREATE (s) -[r:symptom_relate_area]->(a)
+         RETURN r
+   #+end_src
+
+** constraint
+   #+begin_src text
+     CREATE CONSTRAINT ON (n:Person) ASSERT n.name IS UNIQUE;
+   #+end_src
+
+
+* TodoList
+  - [X] display single main node one hop neighbors
+  - [ ] select data and train
+    - [ ] get stats
