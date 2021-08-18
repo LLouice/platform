@@ -311,6 +311,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 
 [[package]]
+name = "ascii"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbf56136a5198c7b01a49e3afcbef6cf84597273d298f54432926024107b0109"
+
+[[package]]
 name = "askama_escape"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -901,6 +907,60 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 
 [[package]]
+name = "hdf5"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a863396b1828dcb188209e0d3e380433415cc4c253f80fa367b5154cc3073db0"
+dependencies = [
+ "bitflags",
+ "hdf5-derive",
+ "hdf5-sys",
+ "hdf5-types",
+ "lazy_static",
+ "libc",
+ "ndarray 0.14.0",
+ "num-integer",
+ "num-traits",
+ "parking_lot",
+]
+
+[[package]]
+name = "hdf5-derive"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6eddba76f9d15423c8737a3f376128e3b556f01cd8927e44736ea8cc63bbcc02"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "hdf5-sys"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15fa1f3c5b34a7dd3815fc68aa8d64f0682e500b393b77b88f8dac206d2b16a9"
+dependencies = [
+ "libc",
+ "libloading",
+ "pkg-config",
+ "regex",
+ "serde",
+ "serde_derive",
+ "winreg",
+]
+
+[[package]]
+name = "hdf5-types"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4523a5d946b3ef2a0aa1d3643a844c581794dee09934c4a8e1ffb6dbb878872e"
+dependencies = [
+ "ascii",
+ "libc",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -987,6 +1047,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1032,6 +1101,16 @@ name = "libc"
 version = "0.2.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba4aede83fc3617411dc6993bc8c70919750c1c257c6ca6a502aed6e0e2394ae"
+
+[[package]]
+name = "libloading"
+version = "0.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "351a32417a12d5f7e82c368a66781e307834dae04c6ce0cd4456d52989229883"
+dependencies = [
+ "cfg-if 1.0.0",
+ "winapi 0.3.9",
+]
 
 [[package]]
 name = "libz-sys"
@@ -1180,10 +1259,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac06db03ec2f46ee0ecdca1a1c34a99c0d188a0d83439b84bf0cb4b386e4ab09"
 dependencies = [
  "matrixmultiply",
- "num-complex",
+ "num-complex 0.2.4",
  "num-integer",
  "num-traits",
  "rawpointer",
+]
+
+[[package]]
+name = "ndarray"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c0d5c9540a691d153064dc47a4db2504587a75eae07bf1d73f7a596ebc73c04"
+dependencies = [
+ "matrixmultiply",
+ "num-complex 0.3.1",
+ "num-integer",
+ "num-traits",
+ "rawpointer",
+]
+
+[[package]]
+name = "ndarray-stats"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22c95a780960082c5746f6bf0ab22d4a3b8cee72bf580acfe9f1e10bc5ea8152"
+dependencies = [
+ "indexmap",
+ "itertools",
+ "ndarray 0.14.0",
+ "noisy_float",
+ "num-integer",
+ "num-traits",
+ "rand 0.7.3",
 ]
 
 [[package]]
@@ -1224,6 +1331,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "noisy_float"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3deb89f8062c0dce4c805a987daff07f92e17c560f7c3ed631282555af902258"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "nom"
 version = "5.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1250,6 +1366,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
 dependencies = [
  "autocfg",
+ "num-traits",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "747d632c0c558b87dbabbe6a82f3b4ae03720d0646ac5b7b4dae89394be5f2c5"
+dependencies = [
  "num-traits",
 ]
 
@@ -1405,7 +1530,10 @@ dependencies = [
  "chrono",
  "env_logger",
  "futures",
+ "hdf5",
  "log",
+ "ndarray 0.14.0",
+ "ndarray-stats",
  "neo4rs",
  "paste",
  "seq-macro",
@@ -1850,7 +1978,7 @@ dependencies = [
  "half",
  "lazy_static",
  "libc",
- "ndarray",
+ "ndarray 0.13.1",
  "rand 0.7.3",
  "thiserror",
  "torch-sys",
@@ -2264,6 +2392,16 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "winreg"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d107f8c6e916235c4c01cabb3e8acf7bea8ef6a63ca2e7fa0527c049badfc48c"
+dependencies = [
+ "serde",
+ "winapi 0.3.9",
+]
 
 [[package]]
 name = "ws2_32-sys"

@@ -24,3 +24,7 @@ chrono = "0.4.19"
 actix-web = "4.0.0-beta.3"
 actix-files = "0.6.0-beta.3"
 actix-rt = "1.1.1"
+# hdf5 = { git = "https://github.com/llouice/hdf5-rust.git", branch = "attrs" }
+hdf5 = "0.7.1"
+ndarray = "0.14"
+ndarray-stats = "0.4.0"
