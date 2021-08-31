@@ -68,11 +68,15 @@ async function main() {
 
   // ------ filter ------
 
-  function _filter(cat: String) {
+  function _filter(cat: String, ctx: any) {
     console.log("=== in _filter ===");
     console.log("cat", cat); // Disease
 
-    _toggleFilterState(cat);
+    let is_toggled = _toggleFilterState(cat);
+    console.log("ctx:", ctx);
+    let filledColor = is_toggled ? colors(cat) : "#ccc";
+    console.log(">>> filteedcolor:", filledColor);
+    ctx.attr("fill", filledColor);
 
     let nodes = Object.assign(nodes_all);
     let links = Object.assign(links_all);
@@ -130,15 +134,21 @@ async function main() {
     refresh(filteredNodes, filteredEdges);
   }
 
-  function _toggleFilterState(cat: String) {
+  function _toggleFilterState(cat: String): boolean {
     if (cat === "Disease") {
       filterState.disease = !filterState.disease;
+      return filterState.disease;
     } else if (cat === "Drug") {
       filterState.drug = !filterState.drug;
+
+      return filterState.drug;
     } else if (cat === "Department") {
       filterState.department = !filterState.department;
+
+      return filterState.department;
     } else if (cat === "Check") {
       filterState.check = !filterState.check;
+      return filterState.check;
     } else {
       console.log("Error: unreachable");
     }
@@ -207,9 +217,11 @@ async function main() {
     initZoom("g.network");
 
     // filters
-    d3.selectAll("._filter").on("click", (e, d) => {
+    d3.selectAll("._filter").each(function (d, i) {
       if (d !== "Symptom") {
-        _filter(d);
+        d3.select(this).on("click", function (e, d) {
+          _filter(d, d3.select(this));
+        });
       }
     });
 
