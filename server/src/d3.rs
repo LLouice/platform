@@ -36,6 +36,13 @@ impl Node {
     }
 }
 
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        self.des == other.des
+    }
+}
+impl Eq for Node {}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Link {
     source: usize,
@@ -57,6 +64,13 @@ impl Link {
         }
     }
 }
+
+impl PartialEq for Link {
+    fn eq(&self, other: &Self) -> bool {
+        self.source == other.source && self.target == self.target
+    }
+}
+impl Eq for Link {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Category {

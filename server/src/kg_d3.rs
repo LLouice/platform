@@ -3,7 +3,7 @@ use crate::neo4j::init_graph;
 use chrono::NaiveDateTime;
 use neo4rs::*;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
 pub struct KgResult {
@@ -104,6 +104,73 @@ impl Kg {
             let link = Link::new(0, idx + 1);
             links.push(link);
         }
+        Ok(GraphData {
+            data: nodes,
+            links,
+            categories,
+        })
+    }
+
+    pub fn convert_dedup(
+        src_type: &str,
+        name: &str,
+        kg_res: Vec<KgResult>,
+    ) -> anyhow::Result<GraphData> {
+        let mut node_keys = HashSet::new();
+
+        let mut nodes = vec![];
+        let mut links = vec![];
+        let mut categories = vec![];
+
+        let mut cats = HashMap::new();
+        cats.insert(vec![src_type.to_owned()], 0);
+        // categories.push(Category::new(src_type.to_owned()));
+        categories.push(Category::new(src_type.to_owned()));
+
+        let des = format!("{}::{}", src_type, name);
+        node_keys.insert(des.clone());
+        let main_node = Enode::new(0, name.to_owned(), des, 70, 0);
+        nodes.push(main_node);
+
+        for x in kg_res.iter() {
+            if !cats.contains_key(&x.label) {
+                let id = cats.len();
+                cats.insert(x.label.to_owned(), id);
+                let label = x.label.join("-");
+                categories.push(Category::new(label));
+            }
+        }
+        println!("cats: {:?}", cats);
+
+        for x in kg_res.into_iter() {
+            let label = x.label.join("-");
+            let des = format!("{}::{}", label, x.name);
+
+            if !node_keys.contains(&des) {
+                node_keys.insert(des.clone());
+
+                let node_id = nodes.len();
+                let node = Enode::new(
+                    nodes.len(),
+                    x.name.clone(),
+                    des,
+                    50,
+                    cats.get(&x.label)
+                        // .expect(format!("key {:?} not exists in cats", x.label).as_str())
+                        .ok_or_else(|| {
+                            let err_msg = format!("key {:?} not exists in cats", x.label);
+                            anyhow!(err_msg)
+                        })?
+                        .to_owned(),
+                );
+                nodes.push(node);
+
+                // let link = Link::new(name.to_owned(), x.);
+                let link = Link::new(0, node_id);
+                links.push(link);
+            }
+        }
+
         Ok(GraphData {
             data: nodes,
             links,

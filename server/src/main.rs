@@ -53,7 +53,7 @@ async fn get_out_links_d3(
 ) -> Result<HttpResponse, Error> {
     println!("{:?}", node_info);
     let NodeInfo { src_type, name } = node_info;
-    let res = Kg_d3::convert(
+    let res = Kg_d3::convert_dedup(
         src_type.as_str(),
         name.as_str(),
         dbg!(Kg_d3::get_out_links(src_type.as_str(), name.as_str()).await),
