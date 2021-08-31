@@ -45,7 +45,9 @@ async function main() {
   const nodes_all = Object.assign(nodes);
   const links_all = Object.assign(links);
 
-  console.log("&&&", nodes.length, links.length);
+  console.log("[main]", nodes.length, links.length);
+  console.log("[main]", nodes, "\n", links);
+
   const w: number = 800;
   const h: number = 600;
 
@@ -87,7 +89,6 @@ async function main() {
 
     let filteredNodes = nodes.filter((x) => {
       let c = x.category;
-      console.log("filter nodes", c);
       if (!filterState.symphtom && c === 0) {
         return false;
       } else if (!filterState.disease && c === 1) {
@@ -104,7 +105,6 @@ async function main() {
 
     let filteredEdges = links.filter((x) => {
       let c = x.target.category;
-      console.log("filter edges", c);
       if (!filterState.symphtom && c === 0) {
         return false;
       } else if (!filterState.disease && c === 1) {
