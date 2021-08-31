@@ -2,3 +2,10 @@
 /data
 /examples/test_split.rs
 /examples/rio.rs
+/neo4j
+node_modules
+dist*
+deps
+.parcel-cache
+frontend/asset
+.log

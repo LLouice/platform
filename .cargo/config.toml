@@ -1,0 +1,10 @@
+
+# [target.x86_64-unknown-linux-gnu]
+# linker = "/usr/bin/clang"
+# # rustflags = ["-Clink-arg=-fuse-ld=lld", "-Ctarget-cpu=native", "-Zshare-generics=y"]
+# # for mold don't use lld
+# rustflags = ["-Clink-arg=-fuse-ld=/usr/bin/mold", "-Ctarget-cpu=native", "-Zshare-generics=y"]
+# # rustflags = ["-Ctarget-cpu=native", "-Zshare-generics=y"]
+
+# [target.wasm32-unknown-unknown]
+# rustflags = []

@@ -1,0 +1,26 @@
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rm -rf ./dist_pack && webpack",
+    "start": "webpack-dev-server"
+  },
+  "author": "LLouice",
+  "license": "MIT",
+  "dependencies": {
+    "@types/d3": "^7.0.0",
+    "d3": "^7.0.1"
+  },
+  "devDependencies": {
+    "@swc/cli": "^0.1.49",
+    "@swc/core": "^1.2.80",
+    "html-loader": "^2.1.2",
+    "parcel": "^2.0.0-rc.0",
+    "swc-loader": "^0.1.14",
+    "webpack": "^5.51.1",
+    "webpack-cli": "^4.8.0",
+    "webpack-dev-server": "^4.0.0"
+  }
+}

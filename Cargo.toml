@@ -1,30 +1,9 @@
-[package]
-name = "platform"
-version = "0.1.0"
-authors = ["llouice <g13920228592@gmail.com>"]
-edition = "2018"
+[workspace]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+members = [
+    "server",
+    "frontend",
+]
 
-[dependencies]
-tch = "0.3"
-anyhow = "1.0"
-serde = { version="1.0", features=["derive"] }
-serde_json = "1.0"
-env_logger = "0.8"
-log = "0.4"
-paste = "1.0"
-seq-macro = "0.2"
-structopt = "0.3"
-neo4rs = "0.5"
-tokio = "1.4"
-futures = "0.3"
-uuid = { version = "0.8.2", features = ["v4"] }
-chrono = "0.4.19"
-actix-web = "4.0.0-beta.3"
-actix-files = "0.6.0-beta.3"
-actix-rt = "1.1.1"
-# hdf5 = { git = "https://github.com/llouice/hdf5-rust.git", branch = "attrs" }
-hdf5 = "0.7.1"
-ndarray = "0.14"
-ndarray-stats = "0.4.0"
+[profile.release]
+lto = true

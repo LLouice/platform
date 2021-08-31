@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>ECharts 关系图</title>
+
+    <!--Import Google Icon Font-->
+    <!-- <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> -->
+
+    <!--Import materialize.css-->
+    <link type="text/css" rel="stylesheet" href="/static/css/materialize.min.css" media="screen,projection" />
+    <link type="text/css" rel="stylesheet" href="/static/css/materializecss-font.css" media="screen,projection" />
+
+    <!--Let browser know website is optimized for mobile-->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <script src="/static/js/jquery-3.6.0.min.js"></script>
+    <script src="/static/js/echarts.min.js"></script>
+    <!--JavaScript at end of body for optimized loading-->
+    <script type="text/javascript" src="/static/js/materialize.min.js"></script>
+</head>
+
+<body>
+    <!-- search -->
+    <!-- <div class="navbar-fixed"> -->
+    <nav>
+        <div class="nav-wrapper grey darken-4">
+            <ul class="right hide-on-med-and-down">
+                <!-- Dropdown Trigger -->
+                <li><a class="dropdown-trigger" href="#!" data-target="dropdown1" id="dropdown_src_type">症状<i class="material-icons right">arrow_drop_down</i></a></li>
+            </ul>
+
+            <form>
+                <div class="input-field grey darken-4" style="max-width: 90%">
+                    <input id="search" type="search" value="肩背痛" class="center light-blue-text" required>
+                    <label class="label-icon" for="search"><i class="material-icons">search</i></label>
+                    <i class="material-icons">close</i>
+                </div>
+            </form>
+        </div>
+    </nav>
+    <!-- </div> -->
+    <br><br>
+
+    <!-- Dropdown Structure -->
+    <ul id='dropdown1' class='dropdown-content grey darken-4'>
+        <li><a href="#!" id="sym">症状</a></li>
+        <li><a href="#!" , id="dis">疾病</a></li>
+        <li><a href="#!" , id="check">检查</a></li>
+    </ul>
+
+    <!-- naive search -->
+    <!-- <div>
+         <input type="search" , name="search" , id="search_inp" , value="肩背痛">
+         <a class="btn waves-effect waves-light", id="search_btn"><i class="material-icons left">search</i></a>
+         </div>
+         </form>
+    -->
+    <div id="main" style="width:1200px;height:1000px;margin:auto"></div>
+    <br><br>
+
+    <!-- 所有结点的分布 -->
+
+    <!-- Tabs -->
+    <div class="row">
+        <div class="col s12">
+            <ul class="tabs tabs-fixed-width z-depth-1 grey darken-3">
+                <li class="tab col s3 white-text"><a href="#test1" class="white-text lighten-3">结点类型分布</a></li>
+                <li class="tab col s3"><a class="active white-text lighten-3"" href="#test2", >类型相关关系</a></li>
+                <li class="tab col s3"><a href="#test3" class="white-text lighten-3">所有关系</a></li>
+            </ul>
+        </div>
+        <div id="test1" class="col s12">
+            <div id="stat_node" style="width:1000px;height:1000px;margin:auto"></div>
+        </div>
+        <div id="test2" class="col s12">
+            <div id="stat_three" style="width:1000px;height:1000px;margin:auto"></div>
+        </div>
+        <div id="test3" class="col s12">
+            <div id="stat_rels" style="width:1000px;height:1000px;margin:auto"></div>
+        </div>
+    </div>
+
+
+
+    <!-- COLLAPSIBLE -->
+
+    <!-- <h1>COLLAPSIBLE</h1>
+         <ul class="collapsible" data-collapsible="accordion">
+         <li class="active">
+         <div class="collapsible-header">
+         <i class="material-icons">filter_drama</i>First
+         </div>
+         <div class="collapsible-body">
+         <div id="stat_node" style="width:1000px;height:800px"></div>
+         </div>
+         </li>
+         <li>
+         <div class="collapsible-header active">
+         <i class="material-icons">filter_drama</i>Second
+         </div>
+         <div class="collapsible-body">
+         <div id="stat_three" style="width:90%;height:800px"></div>
+         </div>
+         </li>
+         <li>
+         <div class="collapsible-header">
+         <i class="material-icons">filter_drama</i>Third
+         </div>
+         <div class="collapsible-body">
+         <div id="stat_rels" style="width:90%;height:800px"></div>
+         </div>
+         </li>
+         </ul>
+
+    -->
+
+
+
+
+    <script type="text/javascript">
+        $(document).ready(function() {
+            // materialize
+            $(".sidenav").sidenav();
+            $('.dropdown-trigger').dropdown();
+            $('.collapsible').collapsible();
+            $('.tabs').tabs();
+
+            // global state
+            let _SRC_TYPE = "症状";
+            let SRC_TYPE = "Symptom";
+
+
+            // dropdown to select SRC_TYPE
+            function setDropdown() {
+                let htm = _SRC_TYPE + "<i class=\"material-icons right\">arrow_drop_down</i>";
+                $("#dropdown_src_type").html(htm);
+                console.log($("#dropdown_src_type"));
+            };
+
+            $("#sym").click(function(x) {
+                _SRC_TYPE = "症状";
+                SRC_TYPE = "Symptom";
+                setDropdown();
+                console.log(SRC_TYPE);
+
+            });
+
+            $("#dis").click(function(x) {
+                _SRC_TYPE = "疾病";
+                SRC_TYPE = "Disease";
+                setDropdown();
+                console.log(SRC_TYPE);
+            });
+
+            $("#check").click(function(x) {
+                _SRC_TYPE = "检查";
+                SRC_TYPE = "Check";
+                setDropdown();
+                console.log(SRC_TYPE);
+            });
+
+            function refresh_canvas(src_type, name) {
+                // get data from server
+                console.log(src_type);
+                console.log(name);
+
+                $.getJSON(
+                    '/get_out_links', {
+                        src_type: src_type,
+                        name: name
+                    },
+                    function(jd) {
+                        console.log(jd);
+
+                        let categories = jd.categories;
+                        option = {
+                            // 图的标题
+                            title: {
+                                text: 'ECharts 关系图'
+                            },
+                            // 提示框的配置
+                            tooltip: {
+                                formatter: function(x) {
+                                    return x.data.des;
+                                }
+                            },
+                            // 工具箱
+                            toolbox: {
+                                // 显示工具箱
+                                show: true,
+                                feature: {
+                                    mark: {
+                                        show: true
+                                    },
+                                    // 还原
+                                    restore: {
+                                        show: true
+                                    },
+                                    // 保存为图片
+                                    saveAsImage: {
+                                        show: true
+                                    }
+                                }
+                            },
+                            legend: [{
+                                // selectedMode: 'single',
+                                data: categories.map(function(a) {
+                                    return a.name;
+                                })
+                            }],
+                            series: [{
+                                    type: 'graph', // 类型:关系图
+                                    layout: 'force', //图的布局，类型为力导图
+                                    symbolSize: 40, // 调整节点的大小
+                                    roam: true, // 是否开启鼠标缩放和平移漫游。默认不开启。如果只想要开启缩放或者平移,可以设置成 'scale' 或者 'move'。设置成 true 为都开启
+                                    edgeSymbol: ['circle', 'arrow'],
+                                    edgeSymbolSize: [2, 10],
+                                    edgeLabel: {
+                                        normal: {
+                                            textStyle: {
+                                                fontSize: 20
+                                            }
+                                        }
+                                    },
+                                    force: {
+                                        repulsion: 1000,
+                                        edgeLength: [10, 50]
+                                    },
+                                    draggable: true,
+                                    lineStyle: {
+                                        normal: {
+                                            width: 2,
+                                            color: '#4b565b',
+                                            curveness: 0.1
+                                        }
+                                    },
+                                    edgeLabel: {
+                                        normal: {
+                                            show: false,
+                                            formatter: function(x) {
+                                                return x.data.name;
+                                            }
+                                        }
+                                    },
+                                    label: {
+                                        normal: {
+                                            show: true,
+                                            textStyle: {}
+                                        }
+                                    },
+
+                                    data: jd.data,
+                                    links: jd.links,
+                                    categories: jd.categories,
+                                },
+
+
+
+
+                            ]
+                        };
+                        mainChart.setOption(option);
+                    }
+                );
+            };
+
+            let mainChart = echarts.init(document.getElementById("main"));
+
+            refresh_canvas("Symptom", "肩背痛");
+
+            $("#search_btn").click(
+                function(x) {
+                    let inp = $("#search_inp").val();
+                    refresh_canvas(SRC_TYPE, inp);
+                }
+            );
+
+            $('#search').on('keyup', function(e) {
+                if (e.keyCode === 13) {
+                    let inp = $(this).val();
+                    console.log(inp);
+                    refresh_canvas(SRC_TYPE, inp);
+                }
+
+            });
+
+            // drill
+            mainChart.on('click', (params) => {
+                console.log(params);
+                // get src_type and name
+                let data = params.data;
+                let name = data.name;
+                let src_type = data.des.split("::")[0];
+                refresh_canvas(src_type, name);
+            });
+
+            // Stat Pie
+            display_stat();
+            // get pies data
+            function display_stat() {
+                $.getJSON(
+                    '/get_stats',
+                    function(jd) {
+                        console.log(jd);
+                        let datas_node = jd.nodes_pie;
+                        display_nodes_stat(datas_node);
+                        let datas_three = [jd.sym_pie, jd.dis_pie, jd.check_pie];
+                        display_three_stat(datas_three);
+                        let datas_rels = jd.rels_pie;
+                        display_rels_stat(datas_rels);
+
+                    });
+            } // display_stat end
+
+            // nodes
+            function display_nodes_stat(datas) {
+                let statChart = echarts.init(document.getElementById("stat_node"));
+                console.log(datas);
+
+                option = {
+                    title: {
+                        top: 20,
+                        text: '知识图谱结点类型分布',
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'item'
+                    },
+                    legend: {
+                        /* orient: 'vertical', */
+                        left: 'center',
+                        bottom: 10,
+                    },
+
+                    series: [{
+                        name: '类型',
+                        type: 'pie',
+                        radius: '50%',
+                        label: {
+                            alignTo: 'edge',
+                            formatter: '{name|{b}}\n{value|{c}|{d}% }',
+                            minMargin: 5,
+                            edgeDistance: 10,
+                            lineHeight: 15,
+                            rich: {
+                                time: {
+                                    fontSize: 10,
+                                    color: '#999'
+                                }
+                            }
+                        },
+                        data: datas,
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        }
+                    }]
+                }; // option end
+                statChart.setOption(option);
+            } // dispaly_nodes_stat end
+
+            // three
+            function display_three_stat(datas) {
+                let statChart = echarts.init(document.getElementById("stat_three"));
+                console.log(datas);
+
+                option = {
+                    title: {
+                        top: 20,
+                        text: '知识图谱类型关系分布',
+                        subtext: '症状|疾病|检查',
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'item'
+                    },
+                    legend: {
+                        /* orient: 'vertical', */
+                        left: 'center',
+                        bottom: 10,
+                    },
+
+                    series: datas.map(function(data, idx) {
+                        var top = idx * 33.3;
+                        return {
+                            type: 'pie',
+                            radius: [20, 60],
+                            top: top + '%',
+                            height: '33.33%',
+                            /* left: 'center', */
+                            itemStyle: {
+                                borderColor: '#fff',
+                                borderWidth: 1
+                            },
+                            label: {
+                                alignTo: 'edge',
+                                formatter: '{name|{b}}\n{value|{c}|{d}% }',
+                                minMargin: 5,
+                                edgeDistance: 10,
+                                lineHeight: 15,
+                                rich: {
+                                    time: {
+                                        fontSize: 10,
+                                        color: '#999'
+                                    }
+                                }
+                            },
+                            labelLine: {
+                                length: 15,
+                                length2: 0,
+                                maxSurfaceAngle: 80
+                            },
+                            labelLayout: function(params) {
+                                var isLeft = params.labelRect.x < statChart.getWidth() / 2;
+                                var points = params.labelLinePoints;
+                                // Update the end point.
+                                points[2][0] = isLeft ?
+                                    params.labelRect.x :
+                                    params.labelRect.x + params.labelRect.width;
+
+                                return {
+                                    labelLinePoints: points
+                                };
+                            },
+                            data: data
+                        }
+                    }) //series end
+
+                }; // option end
+                statChart.setOption(option);
+            } // dispaly_three_stat end
+
+
+            // rels
+            function display_rels_stat(datas) {
+                let statChart = echarts.init(document.getElementById("stat_rels"));
+                console.log(datas);
+
+                option = {
+                    title: {
+                        text: '知识图谱关系分布',
+                        subtext: '',
+                        left: 'center',
+                        top: 20,
+                    },
+                    tooltip: {
+                        trigger: 'item'
+                    },
+
+                    legend: {
+                        type: 'scroll',
+                        orient: 'vertical',
+                        right: 10,
+                        top: 20,
+                        bottom: 20,
+                    },
+
+                    series: [{
+                        name: '类型',
+                        type: 'pie',
+                        radius: '50%',
+                        label: {
+                            /* alignTo: 'edge', */
+                            formatter: '{name|{b}}\n{value|{c}|{d}% }',
+                            minMargin: 5,
+                            edgeDistance: 10,
+                            lineHeight: 15,
+                            rich: {
+                                value: {
+                                    fontSize: 12,
+                                    color: '#000',
+                                    fontWeight: "bolder",
+                                }
+                            }
+                        },
+                        labelLine: {
+                            length: 15,
+                            length2: 0,
+                            maxSurfaceAngle: 80
+                        },
+                        data: datas,
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        }
+                    }]
+                }; // option end
+                statChart.setOption(option);
+            } // dispaly_rels_stat end
+
+
+
+        }); // jquery read end
+    </script>
+</body>
+
+</html>

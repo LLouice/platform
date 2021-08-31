@@ -1,0 +1,8 @@
+extend = "../Makefile.toml"
+
+[tasks.r.env]
+RUST_LOG = "DEBUG"
+RUST_BACKTRACE = "1"
+
+CARGO_INCREMENT = 0
+RUSTC_WRAPPER = '${SCCACHE}'
