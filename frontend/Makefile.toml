@@ -36,7 +36,6 @@ run_task = { name = ["parcel-watch", "parcel-run"], fork = true }
 [tasks.parcel-run]
 command = "npx"
 args = ["parcel", "-p", "9091", "src/index.html"]
-dependencies = ["parcel-watch"]
 
 
 [tasks.parcel-watch]

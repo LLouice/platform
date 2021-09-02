@@ -137,3 +137,29 @@ node
     // simulation.alpha(1).restart();
 
     console.log("=== end _filter ===");
+
+//arc
+
+  let arc = d3
+    .arc()
+    .innerRadius(0)
+    .outerRadius(Math.min(WIDTH, HEIGHT) / 2 - 1);
+
+// arcLabel
+
+  let arcLabel = d3.arc().innerRadius(radius).outerRadius(radius);
+
+  svg
+    .select("g.node_pie")
+    .attr("stroke", "black")
+    .attr("stroke-width", "0.5px")
+    .attr("fill", "none")
+    // .append("g")
+    // .attr("class", "pie_label")
+    .selectAll("text")
+    .data(arcs)
+    .join("text")
+    .style("font-size", "10px")
+    .text((d) => d.data.name)
+    .style("text-anchor", "middle")
+    .attr("transform", (d) => `translate(${arcLabel.centroid(d)})`);
