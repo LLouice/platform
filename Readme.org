@@ -890,4 +890,7 @@
 - [x]  learn d3.js
 - [x]  typescript
 
-- [ ]  use d3 to draw canvas
+
+- [ ] Echarts 文档通读
+- [ ] split the demo.html
+- [ ] modulize the demo.html
