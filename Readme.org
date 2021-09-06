@@ -2,27 +2,31 @@
 - [[#project][Project]]
   - [[#libtorch][libtorch]]
   - [[#inject-data][inject data]]
-  - [[#trunk][trunk]]
-    - [[#rebuild-issue][rebuild issue]]
-  - [[#web][web]]
-    - [[#d3js][d3.js]]
-      - [[#template][template]]
-        - [[#label][label]]
-        - [[#fixing-networks-and-nodes][fixing networks and nodes]]
-        - [[#ego-network-可展开][ego network 可展开]]
-        - [[#deleting-nodes-and-edges-dblclick][deleting nodes and edges (dblclick)]]
-        - [[#mini-map][mini-map]]
-        - [[#linked-mini-map][linked mini-map]]
-        - [[#make-connections-drag-to-connect][make connections (drag to connect)]]
-      - [[#forcesimulation][forcesimulation]]
-      - [[#legend][legend]]
-      - [[#typesd3][types/d3]]
-      - [[#reference][reference]]
-      - [[#data][data]]
-    - [[#swc--tsc][swc & tsc]]
-    - [[#svg][svg]]
-      - [[#g][g]]
-    - [[#parcel-bundle][parcel bundle]]
+  - [[#front-end][Front-end]]
+    - [[#trunk][trunk]]
+      - [[#rebuild-issue][rebuild issue]]
+      - [[#script][script]]
+    - [[#web][web]]
+      - [[#d3js][d3.js]]
+        - [[#template][template]]
+          - [[#label][label]]
+          - [[#fixing-networks-and-nodes][fixing networks and nodes]]
+          - [[#ego-network-可展开][ego network 可展开]]
+          - [[#deleting-nodes-and-edges-dblclick][deleting nodes and edges (dblclick)]]
+          - [[#mini-map][mini-map]]
+          - [[#linked-mini-map][linked mini-map]]
+          - [[#make-connections-drag-to-connect][make connections (drag to connect)]]
+        - [[#forcesimulation][forcesimulation]]
+        - [[#legend][legend]]
+        - [[#typesd3][types/d3]]
+        - [[#reference][reference]]
+        - [[#data][data]]
+      - [[#swc--tsc][swc & tsc]]
+      - [[#svg][svg]]
+        - [[#g][g]]
+      - [[#parcel-bundle][parcel bundle]]
+      - [[#esbuild][esbuild]]
+    - [[#todo][todo]]
 - [[#about-data][About Data]]
   - [[#type][Type]]
     - [[#rdf-schemasubclassof]["rdf-schema#subClassOf",]]
@@ -35,7 +39,7 @@
     - [[#x-疾病相关药品--just-a-little-not-include-in-triples-due-to--in-there]["X 疾病相关药品",  just a little, not include in triples due to # in there]]
   - [[#triples][Triples]]
   - [[#rel][Rel]]
-  - [[#todo][Todo]]
+  - [[#todo-1][Todo]]
   - [[#split-to-cats][split to cats]]
     - [[#症状][症状]]
     - [[#疾病][疾病]]
@@ -55,7 +59,7 @@
     - [[#create-relation][create relation]]
     - [[#constraint][constraint]]
 - [[#todolist][TodoList]]
-- [[#todo-1][Todo]]
+- [[#todo-2][Todo]]
 
 * Project
 ** libtorch
@@ -64,565 +68,577 @@
    #+begin_src sh
      cargo run --release --example inject_data
    #+end_src
-** trunk
-   [[https://github.com/thedodd/trunk][github]] [[https://trunkrs.dev/][website]]
-*** rebuild issue
-    [[https://github.com/thedodd/trunk/issues/156#issuecomment-815026537]]
+** Front-end
+*** trunk
+    [[https://github.com/thedodd/trunk][github]] [[https://trunkrs.dev/][website]]
+**** rebuild issue
+     [[https://github.com/thedodd/trunk/issues/156#issuecomment-815026537]]
 
-   #+begin_quote
-    Trunk supports an optional Trunk.toml config file.
-    An example config file is included in the Trunk repo, and shows all available config options along with their default values.
-    By default, Trunk will look for a Trunk.toml config file in the current working directory.
-    Trunk supports the global --config option to specify an alternative location for the file.
+    #+begin_quote
+     Trunk supports an optional Trunk.toml config file.
+     An example config file is included in the Trunk repo, and shows all available config options along with their default values.
+     By default, Trunk will look for a Trunk.toml config file in the current working directory.
+     Trunk supports the global --config option to specify an alternative location for the file.
 
-    *Note that any relative paths declared in a Trunk.toml file
-      will be treated as being relative to the Trunk.toml file itself*.
-   #+end_quote
-   #+begin_src toml
-     # An example Trunk.toml with all possible fields along with their defaults.
+     *Note that any relative paths declared in a Trunk.toml file
+       will be treated as being relative to the Trunk.toml file itself*.
+    #+end_quote
+    #+begin_src toml
+      # An example Trunk.toml with all possible fields along with their defaults.
 
-     [build]
-     # The index HTML file to drive the bundling process.
-     target = "index.html"
-     # Build in release mode.
-     release = false
-     # The output dir for all final assets.
-     dist = "dist"
-     # The public URL from which assets are to be served.
-     public_url = "/"
+      [build]
+      # The index HTML file to drive the bundling process.
+      target = "index.html"
+      # Build in release mode.
+      release = false
+      # The output dir for all final assets.
+      dist = "dist"
+      # The public URL from which assets are to be served.
+      public_url = "/"
 
-     [watch]
-     # Paths to watch. The `build.target`'s parent folder is watched by default.
-     watch = []
-     # Paths to ignore.
-     ignore = []
+      [watch]
+      # Paths to watch. The `build.target`'s parent folder is watched by default.
+      watch = []
+      # Paths to ignore.
+      ignore = []
 
-     [serve]
-     # The port to serve on.
-     port = 8080
-     # Open a browser tab once the initial build is complete.
-     open = false
-     # Disable auto-reload of the web app.
-     no_autoreload = false
+      [serve]
+      # The port to serve on.
+      port = 8080
+      # Open a browser tab once the initial build is complete.
+      open = false
+      # Disable auto-reload of the web app.
+      no_autoreload = false
 
-     [clean]
-     # The output dir for all final assets.
-     dist = "dist"
-     # Optionally perform a cargo clean.
-     cargo = false
+      [clean]
+      # The output dir for all final assets.
+      dist = "dist"
+      # Optionally perform a cargo clean.
+      cargo = false
 
-     [tools]
-     # Default wasm-bindgen version to download.
-     wasm_bindgen = "0.2.74"
-     # Default wasm-opt version to download.
-     wasm_opt = "version_101"
+      [tools]
+      # Default wasm-bindgen version to download.
+      wasm_bindgen = "0.2.74"
+      # Default wasm-opt version to download.
+      wasm_opt = "version_101"
 
-     ## proxy
-     # Proxies are optional, and default to `None`.
-     # Proxies are only run as part of the `trunk serve` command.
+      ## proxy
+      # Proxies are optional, and default to `None`.
+      # Proxies are only run as part of the `trunk serve` command.
 
-     [[proxy]]
-     # This WebSocket proxy example has a backend and ws field. This example will listen for
-     # WebSocket connections at `/api/ws` and proxy them to `ws://localhost:9000/api/ws`.
-     backend = "ws://localhost:9000/api/ws"
-     ws = true
+      [[proxy]]
+      # This WebSocket proxy example has a backend and ws field. This example will listen for
+      # WebSocket connections at `/api/ws` and proxy them to `ws://localhost:9000/api/ws`.
+      backend = "ws://localhost:9000/api/ws"
+      ws = true
 
-     [[proxy]]
-     # This proxy example has a backend and a rewrite field. Requests received on `rewrite` will be
-     # proxied to the backend after rewriting the `rewrite` prefix to the `backend`'s URI prefix.
-     # E.G., `/api/v1/resource/x/y/z` -> `/resource/x/y/z`
-     rewrite = "/api/v1/"
-     backend = "http://localhost:9000/"
+      [[proxy]]
+      # This proxy example has a backend and a rewrite field. Requests received on `rewrite` will be
+      # proxied to the backend after rewriting the `rewrite` prefix to the `backend`'s URI prefix.
+      # E.G., `/api/v1/resource/x/y/z` -> `/resource/x/y/z`
+      rewrite = "/api/v1/"
+      backend = "http://localhost:9000/"
 
-     [[proxy]]
-     # This proxy specifies only the backend, which is the only required field. In this example,
-     # request URIs are not modified when proxied.
-     backend = "http://localhost:9000/api/v2/"
+      [[proxy]]
+      # This proxy specifies only the backend, which is the only required field. In this example,
+      # request URIs are not modified when proxied.
+      backend = "http://localhost:9000/api/v2/"
 
-   #+end_src
-** web
-*** d3.js
-    - network := [[https://www.d3-graph-gallery.com/network]]
-    - network graph slides := [[http://elijahmeeks.com/networkviz/]]
-    - [[https://www.d3indepth.com/introduction/][D3 in Depth]]
-**** template
-***** label
-      #+begin_src javascript
-        var nodeEnter = d3.select("svg").selectAll("g.node")
-            .data(nodes)
-            .enter()
-            .append("g")
-            .attr("class", "node")
-            .call(force.drag());
+    #+end_src
+**** script
+       all build data go into ~dist~ directory
+       include script: ~copy-file~ then ~foo.js~
 
-        nodeEnter.append("circle")
-            .attr("r", 5)
-            .style("fill", "#CC9999");
+*** web
+**** d3.js
+     - network := [[https://www.d3-graph-gallery.com/network]]
+     - network graph slides := [[http://elijahmeeks.com/networkviz/]]
+     - [[https://www.d3indepth.com/introduction/][D3 in Depth]]
+***** template
+****** label
+       #+begin_src javascript
+         var nodeEnter = d3.select("svg").selectAll("g.node")
+             .data(nodes)
+             .enter()
+             .append("g")
+             .attr("class", "node")
+             .call(force.drag());
 
-        nodeEnter.append("text")
-            .style("text-anchor", "middle")
-            .attr("y", 15)
-            .text(function (d) {return d.id})
+         nodeEnter.append("circle")
+             .attr("r", 5)
+             .style("fill", "#CC9999");
 
-        function updateNetwork() {
-            d3.select("svg").selectAll("g.node")
-                .attr("transform", function (d) {return "translate(" + d.x + "," + d.y + ")"});
-      #+end_src
+         nodeEnter.append("text")
+             .style("text-anchor", "middle")
+             .attr("y", 15)
+             .text(function (d) {return d.id})
 
-***** fixing networks and nodes
-      #+begin_src javascript
-        var nodeEnter = d3.select("svg").selectAll("g.node")
-            .data(nodes)
-            .enter()
-            .append("g")
-            .attr("class", "node")
-            .on("click", nodeClick)
-            .on("dblclick", nodeDoubleClick)
-            .on("mouseover", nodeOver)
-            .on("mouseout", nodeOut)
-            .call(force.drag());
+         function updateNetwork() {
+             d3.select("svg").selectAll("g.node")
+                 .attr("transform", function (d) {return "translate(" + d.x + "," + d.y + ")"});
+       #+end_src
 
-        function nodeClick(d) {
-            d.fixed = true;
-        }
+****** fixing networks and nodes
+       #+begin_src javascript
+         var nodeEnter = d3.select("svg").selectAll("g.node")
+             .data(nodes)
+             .enter()
+             .append("g")
+             .attr("class", "node")
+             .on("click", nodeClick)
+             .on("dblclick", nodeDoubleClick)
+             .on("mouseover", nodeOver)
+             .on("mouseout", nodeOut)
+             .call(force.drag());
 
-        function nodeDoubleClick(d) {
-            d.fixed = false;
-            force.start();
-        }
+         function nodeClick(d) {
+             d.fixed = true;
+         }
 
-        function nodeOver() {
-            force.stop();
-        }
+         function nodeDoubleClick(d) {
+             d.fixed = false;
+             force.start();
+         }
 
-        function nodeOut() {
-            force.start();
-        }
+         function nodeOver() {
+             force.stop();
+         }
 
-      #+end_src
+         function nodeOut() {
+             force.start();
+         }
 
-***** ego network 可展开
-      全部数据 隐藏展开模式?
-      #+begin_src javascript
-        function nodeOver(d) {
-            force.stop();
-            highlightEgoNetwork(d);
-        }
+       #+end_src
 
-        function nodeOut() {
-            force.start();
-            d3.selectAll("g.node > circle")
-                .style("fill", "#CC9999");
+****** ego network 可展开
+       全部数据 隐藏展开模式?
+       #+begin_src javascript
+         function nodeOver(d) {
+             force.stop();
+             highlightEgoNetwork(d);
+         }
 
-            d3.selectAll("line")
-                .style("stroke", "#996666")
-                .style("stroke-width", "1px");
-        }
+         function nodeOut() {
+             force.start();
+             d3.selectAll("g.node > circle")
+                 .style("fill", "#CC9999");
 
-        function highlightEgoNetwork(d) {
-            var egoIDs = [];
-            var filteredEdges = edges.filter(function (p) {return p.source == d || p.target == d});
+             d3.selectAll("line")
+                 .style("stroke", "#996666")
+                 .style("stroke-width", "1px");
+         }
 
-            filteredEdges
-                .forEach(function (p) {
-                    if (p.source == d) {
-                        egoIDs.push(p.target.id)
-                    }
-                    else {
-                        egoIDs.push(p.source.id)
-                    }
-                });
+         function highlightEgoNetwork(d) {
+             var egoIDs = [];
+             var filteredEdges = edges.filter(function (p) {return p.source == d || p.target == d});
 
-            d3.selectAll("line")
-                .filter(function (p) {return filteredEdges.indexOf(p) > -1})
-                .style("stroke", "#66CCCC")
-                .style("stroke-width", "2px");
+             filteredEdges
+                 .forEach(function (p) {
+                     if (p.source == d) {
+                         egoIDs.push(p.target.id)
+                     }
+                     else {
+                         egoIDs.push(p.source.id)
+                     }
+                 });
 
-            d3.selectAll("circle")
-                .filter(function (p) {return egoIDs.indexOf(p.id) > -1})
-                .style("fill", "#66CCCC");
-        }
+             d3.selectAll("line")
+                 .filter(function (p) {return filteredEdges.indexOf(p) > -1})
+                 .style("stroke", "#66CCCC")
+                 .style("stroke-width", "2px");
 
-        function updateNetwork() {
-            d3.select("svg").selectAll("g.node > circle")
-                .attr("r", function (d) {return d.weight});
+             d3.selectAll("circle")
+                 .filter(function (p) {return egoIDs.indexOf(p.id) > -1})
+                 .style("fill", "#66CCCC");
+         }
 
-      #+end_src
+         function updateNetwork() {
+             d3.select("svg").selectAll("g.node > circle")
+                 .attr("r", function (d) {return d.weight});
 
-***** deleting nodes and edges (dblclick)
-      #+begin_src javascript
-        edgeEnter
-          .append("line")
-          .attr("class", "highlight")
-          .style("stroke-width", "8px")
-          .style("stroke", "#66CCCC")
-          .style("opacity", 0)
-          .on("dblclick", deleteEdge)
-          .on("mouseover", edgeOver)
-          .on("mouseout", edgeOut);
+       #+end_src
 
-        var nodeEnter = d3.select("svg").selectAll("g.node")
-          .data(nodes, function (d) {return d.id})
-          .enter()
-          .append("g")
-          .attr("class", "node")
-          .on("dblclick", deleteNode)
-          .on("mouseover", nodeOver)
-          .on("mouseout", nodeOut)
-          .call(force.drag());
+****** deleting nodes and edges (dblclick)
+       #+begin_src javascript
+         edgeEnter
+           .append("line")
+           .attr("class", "highlight")
+           .style("stroke-width", "8px")
+           .style("stroke", "#66CCCC")
+           .style("opacity", 0)
+           .on("dblclick", deleteEdge)
+           .on("mouseover", edgeOver)
+           .on("mouseout", edgeOut);
 
-        function deleteNode(d) {
-            var currentNodes = d3.selectAll("g.node").data();
-            var currentEdges = d3.selectAll("g.edge").data();
-            var filteredNodes = currentNodes.filter(function (p) {return p !== d});
-            var filteredEdges = currentEdges.filter(function (p) {return p.source !== d && p.target !== d});
+         var nodeEnter = d3.select("svg").selectAll("g.node")
+           .data(nodes, function (d) {return d.id})
+           .enter()
+           .append("g")
+           .attr("class", "node")
+           .on("dblclick", deleteNode)
+           .on("mouseover", nodeOver)
+           .on("mouseout", nodeOut)
+           .call(force.drag());
 
-            force.stop();
-            force.nodes(filteredNodes);
-            force.links(filteredEdges);
+         function deleteNode(d) {
+             var currentNodes = d3.selectAll("g.node").data();
+             var currentEdges = d3.selectAll("g.edge").data();
+             var filteredNodes = currentNodes.filter(function (p) {return p !== d});
+             var filteredEdges = currentEdges.filter(function (p) {return p.source !== d && p.target !== d});
 
-            d3.selectAll("g.node").data(filteredNodes, function (d) {return d.id})
-            .exit()
-            .transition()
-            .duration(500)
-            .style("opacity", 0)
-            .remove();
+             force.stop();
+             force.nodes(filteredNodes);
+             force.links(filteredEdges);
 
-            d3.selectAll("g.edge").data(filteredEdges, function (d) {return d.id})
-            .exit()
-            .transition()
-            .duration(500)
-            .style("opacity", 0)
-            .remove();
+             d3.selectAll("g.node").data(filteredNodes, function (d) {return d.id})
+             .exit()
+             .transition()
+             .duration(500)
+             .style("opacity", 0)
+             .remove();
 
-            force.start();
-        }
+             d3.selectAll("g.edge").data(filteredEdges, function (d) {return d.id})
+             .exit()
+             .transition()
+             .duration(500)
+             .style("opacity", 0)
+             .remove();
 
-        function deleteEdge(d) {
-            var currentEdges = d3.selectAll("g.edge").data();
-            var filteredEdges = currentEdges.filter(function (p) {return p !== d});
+             force.start();
+         }
 
-            force.stop();
-            force.links(filteredEdges);
+         function deleteEdge(d) {
+             var currentEdges = d3.selectAll("g.edge").data();
+             var filteredEdges = currentEdges.filter(function (p) {return p !== d});
 
-            d3.selectAll("g.edge").data(filteredEdges, function (d) {return d.id})
-            .exit()
-            .transition()
-            .duration(500)
-            .style("opacity", 0)
-            .remove();
+             force.stop();
+             force.links(filteredEdges);
 
-            force.start();
-        }
+             d3.selectAll("g.edge").data(filteredEdges, function (d) {return d.id})
+             .exit()
+             .transition()
+             .duration(500)
+             .style("opacity", 0)
+             .remove();
 
-        function nodeOver() {
-            d3.select(this).select("circle")
-              .style("fill", "#66CCCC")
-              .style("stroke", "#66CCCC")
-              .style("stroke-width", "3px");
-        }
+             force.start();
+         }
 
-        function nodeOut() {
-            d3.selectAll("circle")
-              .style("fill", "#CC9999")
-              .style("stroke", "black")
-              .style("stroke-width", "1px");
-        }
+         function nodeOver() {
+             d3.select(this).select("circle")
+               .style("fill", "#66CCCC")
+               .style("stroke", "#66CCCC")
+               .style("stroke-width", "3px");
+         }
 
-        function edgeOver(d) {
-            d3.select(this).style("opacity", 0.75);
-        }
+         function nodeOut() {
+             d3.selectAll("circle")
+               .style("fill", "#CC9999")
+               .style("stroke", "black")
+               .style("stroke-width", "1px");
+         }
 
-        function edgeOut() {
-            d3.selectAll("line.highlight").style("opacity", 0);
-        }
-      #+end_src
+         function edgeOver(d) {
+             d3.select(this).style("opacity", 0.75);
+         }
 
-***** mini-map
-      #+begin_src javascript
-        var modules = nodes.map(function (d) {return d.module})
-            .filter(onlyUnique)
-            .map(function (d) {return {id: d, members: []}});
+         function edgeOut() {
+             d3.selectAll("line.highlight").style("opacity", 0);
+         }
+       #+end_src
 
-        var moduleEdges = [];
-        var singletons = {id: "singletons", members: []};
+****** mini-map
+       #+begin_src javascript
+         var modules = nodes.map(function (d) {return d.module})
+             .filter(onlyUnique)
+             .map(function (d) {return {id: d, members: []}});
 
-        var moduleNodeHash = {};
+         var moduleEdges = [];
+         var singletons = {id: "singletons", members: []};
 
-        modules.forEach(function (module) {
-            module.members = nodes.filter(function (d) {return d.module === module.id});
-            moduleNodeHash[module.id] = module;
+         var moduleNodeHash = {};
 
-            if (module.members.length === 1) {
-                singletons.members.push(module.members[0]);
+         modules.forEach(function (module) {
+             module.members = nodes.filter(function (d) {return d.module === module.id});
+             moduleNodeHash[module.id] = module;
+
+             if (module.members.length === 1) {
+                 singletons.members.push(module.members[0]);
+             }
+         });
+
+         modules.push(singletons);
+
+         var moduleEdgeHash = {};
+
+         edges.forEach(function (edge) {
+             if (!moduleEdgeHash[moduleNodeHash[edge.source.module].id + "-" + moduleNodeHash[edge.target.module].id]) {
+                 var moduleEdge = {source: moduleNodeHash[edge.source.module], target: moduleNodeHash[edge.target.module], weight: 1};
+                 moduleEdgeHash[moduleNodeHash[edge.source.module].id + "-" + moduleNodeHash[edge.target.module].id] = moduleEdge;
+                 moduleEdges.push(moduleEdge);
+             }
+             else {
+                 moduleEdgeHash[moduleNodeHash[edge.source.module].id + "-" + moduleNodeHash[edge.target.module].id].weight += 1;
+             }
+         })
+
+         return {nodes: modules, edges: moduleEdges}
+
+         var modularityGraph = modularityCensus(nodes, edges, result);
+
+         var modularityForce = d3.layout.force()
+             .nodes(modularityGraph.nodes)
+             .links(modularityGraph.edges)
+             .size([125,125])
+             .charge(function (d) {return d.members.length * -25})
+             .gravity(0.75)
+             .on("tick", updateModularityNetwork);
+
+         var mSVG = d3.select("#viz").append("svg")
+             .attr("class", "modularity")
+             .attr("height", 100)
+             .attr("width", 100)
+             .style("height", 100)
+             .style("width", 100)
+             .style("position", "absolute")
+             .style("left", 375)
+             .style("top", 375)
+             .style("background", "white");
+
+         mSVG.selectAll("line")
+             .data(modularityGraph.edges)
+             .enter()
+             .append("line")
+             .attr("class", "modularity")
+             .style("stroke-width", function (d) {return d.weight * 2})
+             .style("stroke", "black");
+
+         mSVG.selectAll("circle")
+             .data(modularityGraph.nodes.filter(function(d) {return d.members.length > 1}))
+             .enter()
+             .append("circle")
+             .attr("class", "modularity")
+             .attr("r", function (d) {return d.members.length})
+             .style("stroke", "black")
+             .style("stroke-width", "1px")
+             .style("fill", function (d) {return d.id == "singletons" ? "lightgray" : colors(d.id)})
+
+         modularityForce.start();
+
+         function updateModularityNetwork() {
+             d3.select("svg.modularity").selectAll("line")
+                 .attr("x1", function (d) {return d.source.x})
+                 .attr("y1", function (d) {return d.source.y})
+                 .attr("x2", function (d) {return d.target.x})
+                 .attr("y2", function (d) {return d.target.y});
+
+             d3.select("svg.modularity").selectAll("circle")
+                 .attr("transform", function (d) {return "translate(" + d.x + "," + d.y + ")"});
+         }
+       #+end_src
+
+
+****** linked mini-map
+       #+begin_src javascript
+         function moduleOver(d) {
+             d3.select(this)
+                 .style("stroke-width", "4px")
+             d3.select("svg.main").selectAll("circle")
+                 .style("stroke-width", function (p) {return p.module == d.id ? "4px" : "1px"})
+         }
+
+         function moduleOut(d) {
+             d3.select(this)
+                 .style("stroke-width", "1px")
+             d3.select("svg.main").selectAll("circle")
+                 .style("stroke-width", "1px")
+         }
+
+         function updateNetwork() {
+             d3.select("svg.modularity").selectAll("circle")
+                 .each(function (d) {
+                     var theseNodes = d.members;
+                     var avgX = d3.mean(theseNodes, function (p) {return p.x});
+                     var avgY = d3.mean(theseNodes, function (p) {return p.y});
+                     d.x = avgX / 5;
+                     d.y = avgY / 5;
+                 })
+                 .attr("transform", function (d) {return "translate(" + d.x + "," + d.y + ")"});
+
+             d3.select("svg.modularity").selectAll("line")
+                 .attr("x1", function (d) {return d.source.x})
+                 .attr("y1", function (d) {return d.source.y})
+                 .attr("x2", function (d) {return d.target.x})
+                 .attr("y2", function (d) {return d.target.y});
+       #+end_src
+
+****** make connections (drag to connect)
+       #+begin_src javascript
+         var drag = force.drag()
+             .on("drag", drag)
+             .on("dragend", dragend)
+             .on("dragstart", dragstart);
+
+         var nodeEnter = d3.select("svg.main").selectAll("g.node")
+             .data(nodes, function (d) {return d.id})
+             .enter()
+             .append("g")
+             .attr("class", "node")
+             .call(drag);
+
+         function dragstart() {
+             nodes.forEach(function (node) {
+                 node.fixed = true;
+             })
+         }
+
+         function drag(d) {
+             var nodeDom = this;
+             var foundOverlap = false
+             nodes.forEach(function (otherNode) {
+                 var distance = Math.sqrt(Math.pow(otherNode.x - d.x, 2) + Math.pow(otherNode.y - d.y, 2));
+                 if (otherNode != d && distance < 16) {
+                     foundOverlap = true;
+                 }
+             })
+             if (foundOverlap == true) {
+                 d3.select(nodeDom).select("circle.background")
+                     .style("opacity", 0.5)
+             }
+             else {
+                 d3.select(nodeDom).select("circle.background")
+                     .style("opacity", 0)
+             }
+         }
+
+         function dragend(d) {
+             force.stop();
+
+             d3.selectAll("circle.background")
+                 .style("opacity", 0);
+
+             nodes.forEach(function (otherNode) {
+                 otherNode.fixed = false;
+                 var distance = Math.sqrt(Math.pow(otherNode.x - d.x, 2) + Math.pow(otherNode.y - d.y, 2));
+                 if (otherNode != d && distance < 16) {
+                     var newEdge = {id: d.id + "-" + otherNode.id, source: d, target: otherNode};
+                     if (edges.map(function (d) {return d.id}).indexOf(newEdge.id) == -1) {
+                         edges.push(newEdge);
+                     }
+                 }
+             });
+             force.links(edges);
+
+             var edgeEnter = d3.select("svg.main").selectAll("g.edge")
+                 .data(edges, function (d) {return d.id})
+                 .enter()
+                 .insert("g", "g.node")
+                 .attr("class", "edge");
+
+             edgeEnter
+                 .append("line")
+                 .style("stroke-width", function (d) {return d.border ? "3px" : "1px"})
+                 .style("stroke", "black")
+                 .style("pointer-events", "none");
+
+             var community = jLouvain().nodes(node_data).edges(edge_data);
+             var result  = community();
+
+             nodes.forEach(function (node) {
+                 node.module = result[node.id]
+             });
+
+             node_data = nodes.map(function (d) {return d.id});
+             edge_data = edges.map(function (d) {return {source: d.source.id, target: d.target.id, weight: 1}; });
+
+             modularityCensus(nodes, edges, result);
+
+             d3.selectAll("circle.foreground")
+                 .style("fill", function (d) {return colors(d.module)})
+                 .style("stroke-width", function (d) {return d.border ? "3px" : "1px"});
+
+             force.start();
+         }
+       #+end_src
+
+***** forcesimulation
+      *side effect!!!*
+      change data.nodes and data.links
+      #+begin_src json
+        "nodes":{
+            "id": 2,
+            "index": 1,
+            "name": "B",
+            "vx": 0,
+            "vy": 0,
+            "x": -9.03088751750192,
+            "y": 8.273032735715967
+        },
+        "links":{
+            "source": {
+                "id": 3,
+                "index": 2,
+                "name": "C",
+                "vx": 0,
+                "vy": 0,
+                "x": 1.3823220809823638,
+                "y": -15.750847141167634,
+            },
+            "target": {
+                "id": 4,
+                "index": 3,
+                "name": "D",
+                "vx": 0,
+                "vy": 0,
+                "x": 11.382848792909423,
+                "y": 14.846910566099618
             }
-        });
-
-        modules.push(singletons);
-
-        var moduleEdgeHash = {};
-
-        edges.forEach(function (edge) {
-            if (!moduleEdgeHash[moduleNodeHash[edge.source.module].id + "-" + moduleNodeHash[edge.target.module].id]) {
-                var moduleEdge = {source: moduleNodeHash[edge.source.module], target: moduleNodeHash[edge.target.module], weight: 1};
-                moduleEdgeHash[moduleNodeHash[edge.source.module].id + "-" + moduleNodeHash[edge.target.module].id] = moduleEdge;
-                moduleEdges.push(moduleEdge);
-            }
-            else {
-                moduleEdgeHash[moduleNodeHash[edge.source.module].id + "-" + moduleNodeHash[edge.target.module].id].weight += 1;
-            }
-        })
-
-        return {nodes: modules, edges: moduleEdges}
-
-        var modularityGraph = modularityCensus(nodes, edges, result);
-
-        var modularityForce = d3.layout.force()
-            .nodes(modularityGraph.nodes)
-            .links(modularityGraph.edges)
-            .size([125,125])
-            .charge(function (d) {return d.members.length * -25})
-            .gravity(0.75)
-            .on("tick", updateModularityNetwork);
-
-        var mSVG = d3.select("#viz").append("svg")
-            .attr("class", "modularity")
-            .attr("height", 100)
-            .attr("width", 100)
-            .style("height", 100)
-            .style("width", 100)
-            .style("position", "absolute")
-            .style("left", 375)
-            .style("top", 375)
-            .style("background", "white");
-
-        mSVG.selectAll("line")
-            .data(modularityGraph.edges)
-            .enter()
-            .append("line")
-            .attr("class", "modularity")
-            .style("stroke-width", function (d) {return d.weight * 2})
-            .style("stroke", "black");
-
-        mSVG.selectAll("circle")
-            .data(modularityGraph.nodes.filter(function(d) {return d.members.length > 1}))
-            .enter()
-            .append("circle")
-            .attr("class", "modularity")
-            .attr("r", function (d) {return d.members.length})
-            .style("stroke", "black")
-            .style("stroke-width", "1px")
-            .style("fill", function (d) {return d.id == "singletons" ? "lightgray" : colors(d.id)})
-
-        modularityForce.start();
-
-        function updateModularityNetwork() {
-            d3.select("svg.modularity").selectAll("line")
-                .attr("x1", function (d) {return d.source.x})
-                .attr("y1", function (d) {return d.source.y})
-                .attr("x2", function (d) {return d.target.x})
-                .attr("y2", function (d) {return d.target.y});
-
-            d3.select("svg.modularity").selectAll("circle")
-                .attr("transform", function (d) {return "translate(" + d.x + "," + d.y + ")"});
         }
+
       #+end_src
 
+***** legend
+      https://www.d3-graph-gallery.com/graph/custom_legend.html
 
-***** linked mini-map
-      #+begin_src javascript
-        function moduleOver(d) {
-            d3.select(this)
-                .style("stroke-width", "4px")
-            d3.select("svg.main").selectAll("circle")
-                .style("stroke-width", function (p) {return p.module == d.id ? "4px" : "1px"})
-        }
-
-        function moduleOut(d) {
-            d3.select(this)
-                .style("stroke-width", "1px")
-            d3.select("svg.main").selectAll("circle")
-                .style("stroke-width", "1px")
-        }
-
-        function updateNetwork() {
-            d3.select("svg.modularity").selectAll("circle")
-                .each(function (d) {
-                    var theseNodes = d.members;
-                    var avgX = d3.mean(theseNodes, function (p) {return p.x});
-                    var avgY = d3.mean(theseNodes, function (p) {return p.y});
-                    d.x = avgX / 5;
-                    d.y = avgY / 5;
-                })
-                .attr("transform", function (d) {return "translate(" + d.x + "," + d.y + ")"});
-
-            d3.select("svg.modularity").selectAll("line")
-                .attr("x1", function (d) {return d.source.x})
-                .attr("y1", function (d) {return d.source.y})
-                .attr("x2", function (d) {return d.target.x})
-                .attr("y2", function (d) {return d.target.y});
+ ****
+***** types/d3
+      #+begin_src sh
+        npm install --save @types/d3
       #+end_src
 
-***** make connections (drag to connect)
-      #+begin_src javascript
-        var drag = force.drag()
-            .on("drag", drag)
-            .on("dragend", dragend)
-            .on("dragstart", dragstart);
+***** reference
+      [[https://github.com/Lemoncode/d3js-typescript-examples]]
+***** data
+      selection.data default bases on array index, use key fn to customize
+      [[https://stackoverflow.com/questions/44891369/how-to-remove-node-in-d3-force-layout][data key]]
 
-        var nodeEnter = d3.select("svg.main").selectAll("g.node")
-            .data(nodes, function (d) {return d.id})
-            .enter()
-            .append("g")
-            .attr("class", "node")
-            .call(drag);
-
-        function dragstart() {
-            nodes.forEach(function (node) {
-                node.fixed = true;
-            })
-        }
-
-        function drag(d) {
-            var nodeDom = this;
-            var foundOverlap = false
-            nodes.forEach(function (otherNode) {
-                var distance = Math.sqrt(Math.pow(otherNode.x - d.x, 2) + Math.pow(otherNode.y - d.y, 2));
-                if (otherNode != d && distance < 16) {
-                    foundOverlap = true;
-                }
-            })
-            if (foundOverlap == true) {
-                d3.select(nodeDom).select("circle.background")
-                    .style("opacity", 0.5)
-            }
-            else {
-                d3.select(nodeDom).select("circle.background")
-                    .style("opacity", 0)
-            }
-        }
-
-        function dragend(d) {
-            force.stop();
-
-            d3.selectAll("circle.background")
-                .style("opacity", 0);
-
-            nodes.forEach(function (otherNode) {
-                otherNode.fixed = false;
-                var distance = Math.sqrt(Math.pow(otherNode.x - d.x, 2) + Math.pow(otherNode.y - d.y, 2));
-                if (otherNode != d && distance < 16) {
-                    var newEdge = {id: d.id + "-" + otherNode.id, source: d, target: otherNode};
-                    if (edges.map(function (d) {return d.id}).indexOf(newEdge.id) == -1) {
-                        edges.push(newEdge);
-                    }
-                }
-            });
-            force.links(edges);
-
-            var edgeEnter = d3.select("svg.main").selectAll("g.edge")
-                .data(edges, function (d) {return d.id})
-                .enter()
-                .insert("g", "g.node")
-                .attr("class", "edge");
-
-            edgeEnter
-                .append("line")
-                .style("stroke-width", function (d) {return d.border ? "3px" : "1px"})
-                .style("stroke", "black")
-                .style("pointer-events", "none");
-
-            var community = jLouvain().nodes(node_data).edges(edge_data);
-            var result  = community();
-
-            nodes.forEach(function (node) {
-                node.module = result[node.id]
-            });
-
-            node_data = nodes.map(function (d) {return d.id});
-            edge_data = edges.map(function (d) {return {source: d.source.id, target: d.target.id, weight: 1}; });
-
-            modularityCensus(nodes, edges, result);
-
-            d3.selectAll("circle.foreground")
-                .style("fill", function (d) {return colors(d.module)})
-                .style("stroke-width", function (d) {return d.border ? "3px" : "1px"});
-
-            force.start();
-        }
-      #+end_src
-
-**** forcesimulation
-     *side effect!!!*
-     change data.nodes and data.links
-     #+begin_src json
-       "nodes":{
-           "id": 2,
-           "index": 1,
-           "name": "B",
-           "vx": 0,
-           "vy": 0,
-           "x": -9.03088751750192,
-           "y": 8.273032735715967
-       },
-       "links":{
-           "source": {
-               "id": 3,
-               "index": 2,
-               "name": "C",
-               "vx": 0,
-               "vy": 0,
-               "x": 1.3823220809823638,
-               "y": -15.750847141167634,
-           },
-           "target": {
-               "id": 4,
-               "index": 3,
-               "name": "D",
-               "vx": 0,
-               "vy": 0,
-               "x": 11.382848792909423,
-               "y": 14.846910566099618
-           }
-       }
-
-     #+end_src
-
-**** legend
-     https://www.d3-graph-gallery.com/graph/custom_legend.html
-
-****
-**** types/d3
+**** swc & tsc
      #+begin_src sh
-       npm install --save @types/d3
+       swc src --out-dir build/src -w --sync & tsc -w --pretty --skipLibCheck --noEmit
      #+end_src
 
-**** reference
-     [[https://github.com/Lemoncode/d3js-typescript-examples]]
-**** data
-     selection.data default bases on array index, use key fn to customize
-     [[https://stackoverflow.com/questions/44891369/how-to-remove-node-in-d3-force-layout][data key]]
-
-*** swc & tsc
-    #+begin_src sh
-      swc src --out-dir build/src -w --sync & tsc -w --pretty --skipLibCheck --noEmit
-    #+end_src
-
-*** svg
-**** g
-     [[https://developer.mozilla.org/en-US/docs/Web/SVG/Element/g][group other SVG elements]]
-     [[http://tutorials.jenkov.com/svg/g-element.html][svg tut]]
-     #+begin_quote
-     The <g>-element doesn't have x and y attributes.
-     To move the contents of a <g>-element you can only do so using the transform attribute,
-     using the "translate" function,
-     like this: transform="translate(x,y)".
-     #+end_quote
-*** parcel bundle
-    #+begin_src sh
-      sudo sysctl fs.inotify.max_user_watches=32768
-    #+end_src
-
+**** svg
+***** g
+      [[https://developer.mozilla.org/en-US/docs/Web/SVG/Element/g][group other SVG elements]]
+      [[http://tutorials.jenkov.com/svg/g-element.html][svg tut]]
+      #+begin_quote
+      The <g>-element doesn't have x and y attributes.
+      To move the contents of a <g>-element you can only do so using the transform attribute,
+      using the "translate" function,
+      like this: transform="translate(x,y)".
+      #+end_quote
+**** parcel bundle
+     #+begin_src sh
+       sudo sysctl fs.inotify.max_user_watches=32768
+     #+end_src
+**** esbuild
+     #+begin_src sh
+       ./node_modules/.bin/esbuild src/index.ts --bundle --outfile=out.js
+     #+end_src
+*** todo
+    - [x] include bundle data
+    - [x] import all export js snippet
+    - [ ] 界面构建
 * About Data
 ** Type
 *** "rdf-schema#subClassOf",
