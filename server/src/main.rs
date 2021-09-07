@@ -8,11 +8,11 @@ use actix_web::{
     middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 // use anyhow::Result;
-use platform::echarts;
-use platform::kg::{self, Kg};
-use platform::kg_d3::{self, Kg as Kg_d3};
+
 use serde::Deserialize;
 use std::{env, io};
+
+use platform::kg::{self, Kg};
 
 /// greet and debug
 async fn index(req: HttpRequest) -> &'static str {
@@ -34,7 +34,7 @@ struct NodeInfo {
 async fn get_out_links(web::Query(node_info): web::Query<NodeInfo>) -> Result<HttpResponse, Error> {
     println!("{:?}", node_info);
     let NodeInfo { src_type, name } = node_info;
-    let res = Kg::convert(
+    let res = Kg::convert_dedup(
         src_type.as_str(),
         name.as_str(),
         dbg!(Kg::get_out_links(src_type.as_str(), name.as_str()).await),
@@ -53,10 +53,10 @@ async fn get_out_links_d3(
 ) -> Result<HttpResponse, Error> {
     println!("{:?}", node_info);
     let NodeInfo { src_type, name } = node_info;
-    let res = Kg_d3::convert_dedup(
+    let res = Kg::convert_d3_dedup(
         src_type.as_str(),
         name.as_str(),
-        dbg!(Kg_d3::get_out_links(src_type.as_str(), name.as_str()).await),
+        dbg!(Kg::get_out_links(src_type.as_str(), name.as_str()).await),
     )
     .map(|x| HttpResponse::Ok().json(x))
     .map_err(|e| {

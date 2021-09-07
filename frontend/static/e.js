@@ -28,10 +28,10 @@ export function getEchartInstance(selector = "network") {
 }
 
 // network
-export async function displayNetwork() {
+export async function displayNetwork(src_type = "Symptom", name = "肩背痛") {
   let networkChart = getEchartInstance("network");
   networkChart.showLoading();
-  let networkOption = await renderNetwork();
+  let networkOption = await renderNetwork(src_type, name);
   networkChart.hideLoading();
   networkChart.setOption(networkOption);
 

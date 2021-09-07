@@ -96,3 +96,13 @@ pub fn run() {
     // only required for stdweb
     yew::run_loop();
 }
+
+
+                <ybc::Block>
+                    <ybc::Container classes={classes!("network")}>
+                        <div id="network" style="width:1200px;height:1000px;margin:auto"></div>
+
+                        <div id="stats_rels" style="width:1200px;height:1000px;margin:auto"></div>
+                    </ybc::Container>
+
+                </ybc::Block>

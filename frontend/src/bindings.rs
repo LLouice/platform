@@ -7,4 +7,8 @@ extern "C" {
 
     #[wasm_bindgen(js_name = "main")]
     pub fn main();
+
+    #[wasm_bindgen(js_name = "displayNetwork")]
+    pub async fn display_network(src_type: String, name: String);
+
 }

@@ -3,15 +3,11 @@ use wasm_logger;
 
 use wasm_bindgen::JsCast;
 
+use reqwasm::http::{Request, Response};
 use web_sys::HtmlInputElement;
 
-use yew::format::{Json, Nothing};
+use yew::html::Scope;
 use yew::prelude::*;
-use yew::services::fetch::{FetchService, FetchTask, Request, Response};
-
-use ybc::NavbarFixed::Top;
-use ybc::TileCtx::{Ancestor, Child, Parent};
-use ybc::TileSize::Four;
 
 use anyhow::Result;
 
@@ -19,28 +15,21 @@ use platform::GraphData;
 
 use crate::bindings;
 
-struct App {
-    link: ComponentLink<Self>,
-    fetch_task: Option<FetchTask>,
-}
+struct App;
 
 pub(crate) enum AppMsg {
     Search(String),
-    ReceiveGraphData(Result<GraphData>),
 }
 
 impl Component for App {
     type Message = AppMsg;
     type Properties = ();
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        Self {
-            link,
-            fetch_task: None,
-        }
+    fn create(_ctx: &Context<Self>) -> Self {
+        Self {}
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         use AppMsg::*;
         match msg {
             Search(value) => {
@@ -53,33 +42,29 @@ impl Component for App {
         false
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
         false
     }
 
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <>
-                { self.view_navbar() }
+                { self.view_navbar(ctx.link()) }
 
-                <ybc::Block>
-                    <ybc::Container classes={classes!("network")}>
+                <div class="block">
+                    <div class="container network">
                         <div id="network" style="width:1200px;height:1000px;margin:auto"></div>
-
                         <div id="stats_rels" style="width:1200px;height:1000px;margin:auto"></div>
-                    </ybc::Container>
-
-                </ybc::Block>
-
-
+                    </div>
+                </div>
             </>
         }
     }
 }
 
 impl App {
-    fn view_navbar(&self) -> Html {
-        let onkeypress = self.link.batch_callback(|e: KeyboardEvent| {
+    fn view_navbar(&self, link: &Scope<Self>) -> Html {
+        let onkeypress = link.batch_callback(|e: KeyboardEvent| {
             if e.key() == "Enter" {
                 let input = e
                     .target()
@@ -163,27 +148,26 @@ impl App {
 
 impl App {
     fn search(&self, name: String) {
-        let uri = format!(
-            "http://localhost:9090/get_out_links_d3?src_type=Symptom&name={}",
-            name
-        );
-        let get_request = Request::get(uri)
-            .body(Nothing)
-            .expect("Could not build that request");
-        let callback = self
-            .link
-            .callback(|response: Response<Json<Result<GraphData>>>| {
-                let Json(data) = response.into_body();
-                AppMsg::ReceiveGraphData(data)
-            });
-        let task = FetchService::fetch(get_request, callback).expect("failed to start request");
-        // 4. store the task so it isn't canceled immediately
-        self.fetch_task = Some(task);
+        // let resp = spawn_local(async move {
+        //     let uri = format!(
+        //         "http://localhost:9090/get_out_links?src_type=Symptom&name={}",
+        //         name
+        //     );
+
+        //     let resp = Request::get(&uri).send().await.unwrap();
+        //     log::info!("{:?}", resp);
+        //     let graph_data: GraphData = resp.json().await.unwrap();
+        //     log::info!("graph_data: {:?}", graph_data);
+        // });
+
+        unsafe {
+            spawn_local(bindings::display_network("Symptom".to_string(), name));
+        }
     }
 }
 
 pub fn run() {
-    yew::initialize();
+    // yew::initialize();
     wasm_logger::init(wasm_logger::Config::default());
     // env_logger::init();
     // spawn_local(bindings::display_network());
@@ -193,12 +177,14 @@ pub fn run() {
         .query_selector("#yew")
         .unwrap()
         .unwrap();
-    yew::App::<App>::new().mount(mount_point);
 
     unsafe {
         bindings::main();
     }
 
     // only required for stdweb
-    yew::run_loop();
+    // yew::run_loop();
+
+    yew::start_app_in_element::<App>(mount_point);
+    log::info!("after start app");
 }

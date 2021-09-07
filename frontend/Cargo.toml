@@ -8,10 +8,13 @@ edition = "2018"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "yew-frontend"
+path = "src/main.rs"
+
 [dependencies]
-ybc = "0.2"
-# yew = { version = "0.18", git="https://github.com/yewstack/yew.git" }
-yew = "0.18"
+yew = { version = "0.18", git="https://github.com/yewstack/yew.git" }
+# yew = "0.18"
 
 
 # env_logger = "0.9"
@@ -22,7 +25,10 @@ wasm-bindgen-futures = "0.4.26"
 wasm-logger = "0.2.0"
 anyhow = "1.0.43"
 
+# platform = { path = "../../platform/server", features=["web"] , default_features = false}
 platform = { path = "../../platform/server" }
+gloo = "0.3.0"
+reqwasm = "0.2.1"
 
 
 [dependencies.web-sys]
