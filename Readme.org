@@ -27,6 +27,7 @@
       - [[#parcel-bundle][parcel bundle]]
       - [[#esbuild][esbuild]]
     - [[#todo][todo]]
+      - [[#界面构建][界面构建]]
 - [[#about-data][About Data]]
   - [[#type][Type]]
     - [[#rdf-schemasubclassof]["rdf-schema#subClassOf",]]
@@ -638,7 +639,8 @@
 *** todo
     - [x] include bundle data
     - [x] import all export js snippet
-    - [ ] 界面构建
+**** 界面构建
+     - [ ] navbar
 * About Data
 ** Type
 *** "rdf-schema#subClassOf",

@@ -9,3 +9,5 @@ pub mod kg_d3;
 pub mod neo4j;
 pub mod triple;
 pub mod utils;
+
+pub use kg_d3::GraphData;
