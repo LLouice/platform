@@ -13,9 +13,8 @@ name = "yew-frontend"
 path = "src/main.rs"
 
 [dependencies]
-yew = { version = "0.18", git="https://github.com/yewstack/yew.git" }
-# yew = "0.18"
-
+yew = {  git="https://github.com/yewstack/yew.git" }
+yew-router = { git="https://github.com/yewstack/yew.git" }
 
 # env_logger = "0.9"
 log = "0.4"

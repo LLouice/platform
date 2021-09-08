@@ -8,14 +8,29 @@ use web_sys::HtmlInputElement;
 
 use yew::html::Scope;
 use yew::prelude::*;
+use yew_router::prelude::*;
 
 use anyhow::Result;
 
 use platform::GraphData;
 
 use crate::bindings;
+use crate::pages::{home::Home, page_not_found::PageNotFound};
 
 struct App;
+
+#[derive(Routable, PartialEq, Clone, Debug)]
+pub enum Route {
+    // #[at("/posts/:id")]
+    // Post { id: u64 },
+    #[at("/symptom")]
+    Symptom,
+    #[at("/")]
+    Home,
+    #[not_found]
+    #[at("/404")]
+    NotFound,
+}
 
 pub(crate) enum AppMsg {
     Search(String),
@@ -51,17 +66,17 @@ impl Component for App {
             <>
                 { self.view_navbar(ctx.link()) }
 
-                <div class="block">
-                    <div class="container network">
-                        <div id="network" style="width:1200px;height:1000px;margin:auto"></div>
-                        <div id="stats_rels" style="width:1200px;height:1000px;margin:auto"></div>
-                    </div>
-                </div>
+                <main>
+                    <Router<Route> render={Router::render(switch)} />
+                </main>
+
+                { self.view_footer() }
             </>
         }
     }
 }
 
+// view function
 impl App {
     fn view_navbar(&self, link: &Scope<Self>) -> Html {
         let onkeypress = link.batch_callback(|e: KeyboardEvent| {
@@ -95,13 +110,18 @@ impl App {
 
                     <div id="navbarBasicExample" class="navbar-menu">
                         <div class="navbar-start">
-                            <a class="navbar-item">
-                                { "Home" }
-                            </a>
 
-                            <a class="navbar-item">
-                                { "Documentation" }
-                            </a>
+                            <Link<Route> classes={classes!("navbar-item")} route={Route::Home}>
+                                { "Home" }
+                            </Link<Route>>
+
+                            // <a class="navbar-item">
+                            //     { "Home" }
+                            // </a>
+
+                            <Link<Route> classes={classes!("navbar-item")} route={Route::Symptom}>
+                                { "症状" }
+                            </Link<Route>>
 
                             <div class="navbar-item has-dropdown is-hoverable">
                                 <a class="navbar-link">
@@ -144,8 +164,22 @@ impl App {
             </section>
         }
     }
+
+    fn view_footer(&self) -> Html {
+        html! {
+            <footer class="footer">
+                <div class="content has-text-centered">
+                    { "Powered by " }
+                    <a href="https://yew.rs">{ "Yew" }</a>
+                    { " using " }
+                    <a href="https://bulma.io">{ "Bulma" }</a>
+                </div>
+            </footer>
+        }
+    }
 }
 
+// function
 impl App {
     fn search(&self, name: String) {
         // let resp = spawn_local(async move {
@@ -166,6 +200,20 @@ impl App {
     }
 }
 
+fn switch(routes: &Route) -> Html {
+    match routes {
+        Route::Home => {
+            html! { <Home /> }
+        }
+        Route::Symptom => {
+            html! { <Home /> }
+        }
+        Route::NotFound => {
+            html! { <PageNotFound /> }
+        }
+    }
+}
+
 pub fn run() {
     // yew::initialize();
     wasm_logger::init(wasm_logger::Config::default());
@@ -178,9 +226,9 @@ pub fn run() {
         .unwrap()
         .unwrap();
 
-    unsafe {
-        bindings::main();
-    }
+    // unsafe {
+    //     bindings::main();
+    // }
 
     // only required for stdweb
     // yew::run_loop();

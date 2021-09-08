@@ -2,8 +2,8 @@
 export async function fetchJsonData(url, data) {
   const base_url = "http://localhost:9090/";
 
-  console.log("*** base_url, url", base_url, url);
   var final_url = base_url + url;
+  console.log("*** final_url", final_url);
 
   var reps;
 
@@ -49,7 +49,7 @@ export async function displayNetwork(src_type = "Symptom", name = "肩背痛") {
 }
 
 export async function renderNetwork(src_type = "Symptom", name = "肩背痛") {
-  let url = "get_out_links_d3";
+  let url = "get_out_links";
   let data = {
     src_type: src_type,
     name: name,
