@@ -1,16 +1,18 @@
 use chrono::NaiveDateTime;
 use neo4rs::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use std::collections::{HashMap, HashSet};
 
 use crate::data::{Category, GraphData, GraphDataD3, Link, LinkD3, Node as DNode};
 use crate::neo4j::init_graph;
+use crate::session::GraphSession;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct KgResult {
     name: String,
     label: Vec<String>,
+    #[serde(skip)]
     updated_time: NaiveDateTime,
 }
 
@@ -49,13 +51,36 @@ impl Kg {
         res
     }
 
+    pub async fn get_in_links(target_type: &str, name: &str) -> Vec<KgResult> {
+        let graph = init_graph().await;
+        let cypher = format!(
+            "match (ps) -[r]-> (pt:{}{{name:$name}})  return ps,r,pt",
+            target_type
+        );
+        let mut result = graph
+            .execute(query(cypher.as_str()).param("name", name))
+            .await
+            .expect("graph execute error");
+
+        let mut res = vec![];
+        while let Ok(Some(row)) = result.next().await {
+            let node: Node = row.get("ps").unwrap();
+            let labels = node.labels();
+            let name: String = node.get("name").unwrap();
+            let updated_time: NaiveDateTime = node.get("updated_time").unwrap();
+            res.push(KgResult::new(name, labels, updated_time));
+        }
+        res
+    }
+
+    #[deprecated(note = "Use `convert_dedup` instead.")]
     pub fn convert(src_type: &str, name: &str, kg_res: Vec<KgResult>) -> anyhow::Result<GraphData> {
         let mut nodes = vec![];
         let mut links = vec![];
         let mut categories = vec![];
 
         let mut cats = HashMap::new();
-        cats.insert(vec![src_type.to_owned()], 0);
+        cats.insert(src_type.to_owned(), 0);
         // categories.push(Category::new(src_type.to_owned()));
         categories.push(Category::new(src_type.to_owned()));
 
@@ -64,10 +89,10 @@ impl Kg {
         nodes.push(main_node);
 
         for x in kg_res.iter() {
-            if !cats.contains_key(&x.label) {
+            let label = x.label.join("-");
+            if !cats.contains_key(label.as_str()) {
                 let id = cats.len();
-                cats.insert(x.label.to_owned(), id);
-                let label = x.label.join("-");
+                cats.insert(label.clone(), id);
                 categories.push(Category::new(label));
             }
         }
@@ -81,7 +106,7 @@ impl Kg {
                 x.name.clone(),
                 des,
                 50,
-                cats.get(&x.label)
+                cats.get(label.as_str())
                     // .expect(format!("key {:?} not exists in cats", x.label).as_str())
                     .ok_or_else(|| {
                         let err_msg = format!("key {:?} not exists in cats", x.label);
@@ -106,28 +131,29 @@ impl Kg {
         src_type: &str,
         name: &str,
         kg_res: Vec<KgResult>,
-    ) -> anyhow::Result<GraphData> {
-        let mut node_keys = HashSet::new();
+    ) -> anyhow::Result<(GraphData, GraphSession)> {
+        let mut node_keys = HashMap::new();
 
         let mut nodes = vec![];
         let mut links = vec![];
         let mut categories = vec![];
 
-        let mut cats = HashMap::new();
-        cats.insert(vec![src_type.to_owned()], 0);
-        // categories.push(Category::new(src_type.to_owned()));
+        let mut cats: HashMap<String, usize> = HashMap::new();
+        cats.insert(src_type.to_owned(), 0);
         categories.push(Category::new(src_type.to_owned()));
 
         let des = format!("{}::{}", src_type, name);
-        node_keys.insert(des.clone());
+        let node_id = node_keys.len();
+        *node_keys.entry(des.clone()).or_insert(node_id);
+
         let main_node = DNode::new(0, name.to_owned(), des, 70, 0);
         nodes.push(main_node);
 
         for x in kg_res.iter() {
-            if !cats.contains_key(&x.label) {
+            let label = x.label.join("-");
+            if !cats.contains_key(label.as_str()) {
                 let id = cats.len();
-                cats.insert(x.label.to_owned(), id);
-                let label = x.label.join("-");
+                cats.insert(label.clone(), id);
                 categories.push(Category::new(label));
             }
         }
@@ -137,16 +163,16 @@ impl Kg {
             let label = x.label.join("-");
             let des = format!("{}::{}", label, x.name);
 
-            if !node_keys.contains(&des) {
-                node_keys.insert(des.clone());
+            if !node_keys.contains_key(&des) {
+                let node_id = node_keys.len();
+                node_keys.insert(des.clone(), node_id);
 
-                let node_id = nodes.len();
                 let node = DNode::new(
-                    nodes.len(),
+                    node_id,
                     x.name.clone(),
                     des,
                     50,
-                    cats.get(&x.label)
+                    cats.get(label.as_str())
                         // .expect(format!("key {:?} not exists in cats", x.label).as_str())
                         .ok_or_else(|| {
                             let err_msg = format!("key {:?} not exists in cats", x.label);
@@ -162,11 +188,137 @@ impl Kg {
             }
         }
 
-        Ok(GraphData {
+        let graph_data = GraphData {
             data: nodes,
             links,
             categories,
-        })
+        };
+        let graph_session = GraphSession { node_keys, cats };
+
+        Ok((graph_data, graph_session))
+    }
+
+    /// FIXME: merge with no session function
+    /// no dedup in global context
+    /// session for increase node and links
+    /// current frontend state for readd into deleted node and link: in sess but not in current
+    /// state, readd it
+    pub fn convert_dedup_with_session(
+        node_info: &NodeInfo,
+        current_nodes_id: HashSet<usize>,
+        current_links_set: HashSet<(usize, usize)>,
+        kg_res: Vec<KgResult>,
+        sess: GraphSession,
+    ) -> anyhow::Result<(GraphData, GraphSession)> {
+        let NodeInfo { src_type, name } = node_info;
+
+        // this is sess is a new copy Deserialized from the inner String
+        let GraphSession {
+            mut node_keys,
+            mut cats,
+        } = sess;
+
+        // get current node info
+        let current_node_des = format!("{}::{}", src_type, name);
+        let current_node_id = node_keys.get(&current_node_des).unwrap().to_owned();
+
+        let mut nodes = vec![];
+        let mut links = vec![];
+        // FIXME: contains current categories
+        let mut categories = vec![];
+
+        // current main node
+        // let node_id = node_keys.len();
+        // *node_keys.entry(des.clone()).or_insert(node_id);
+
+        // FIXME: frontend give all categories and filter
+        for x in kg_res.iter() {
+            let label = x.label.join("-");
+            if !cats.contains_key(label.as_str()) {
+                let id = cats.len();
+                cats.insert(label.clone(), id);
+                categories.push(Category::new(label));
+            }
+        }
+
+        println!("cats: {:?}", cats);
+
+        // HashMap filter dup node
+        for x in kg_res.into_iter() {
+            // left node info
+            let label = x.label.join("-");
+            let des = format!("{}::{}", label, x.name);
+
+            let is_node_contained = node_keys.contains_key(&des);
+
+            if !is_node_contained {
+                // new node, add node, add link
+                let node_id = node_keys.len();
+                node_keys.insert(des.clone(), node_id);
+
+                let node = DNode::new(
+                    node_id,
+                    x.name.clone(),
+                    des,
+                    50,
+                    cats.get(label.as_str())
+                        // .expect(format!("key {:?} not exists in cats", x.label).as_str())
+                        .ok_or_else(|| {
+                            let err_msg = format!("key {:?} not exists in cats", x.label);
+                            anyhow!(err_msg)
+                        })?
+                        .to_owned(),
+                );
+                nodes.push(node);
+
+                let link = Link::new(current_node_id.to_string(), node_id.to_string());
+                links.push(link);
+            } else {
+                // old node, just add to graph_data
+                let node_id = node_keys.get(&des).unwrap().to_owned();
+
+                // link is not presented
+                let is_node_presented = current_nodes_id.contains(&node_id);
+                let is_link_presented = current_links_set.contains(&(current_node_id, node_id));
+
+                match (is_node_presented, is_link_presented) {
+                    (false, _) => {
+                        // add node, add link
+                        let node = DNode::new(
+                            node_id,
+                            x.name.clone(),
+                            des,
+                            50,
+                            cats.get(label.as_str())
+                                // .expect(format!("key {:?} not exists in cats", x.label).as_str())
+                                .ok_or_else(|| {
+                                    let err_msg = format!("key {:?} not exists in cats", x.label);
+                                    anyhow!(err_msg)
+                                })?
+                                .to_owned(),
+                        );
+                        nodes.push(node);
+                        let link = Link::new(current_node_id.to_string(), node_id.to_string());
+                        links.push(link);
+                    }
+                    (true, false) => {
+                        // add link
+                        let link = Link::new(current_node_id.to_string(), node_id.to_string());
+                        links.push(link);
+                    }
+                    (true, true) => {}
+                }
+            }
+        }
+
+        let graph_data = GraphData {
+            data: nodes,
+            links,
+            categories,
+        };
+        let graph_session = GraphSession { node_keys, cats };
+
+        Ok((graph_data, graph_session))
     }
 
     pub fn convert_d3_dedup(
@@ -234,6 +386,14 @@ impl Kg {
             links,
             categories,
         })
+    }
+
+    pub async fn query_node_links(NodeInfo { src_type, name }: &NodeInfo) -> Vec<KgResult> {
+        if src_type == "Symptom" {
+            Self::get_out_links(src_type.as_str(), name.as_str()).await
+        } else {
+            Self::get_in_links(src_type.as_str(), name.as_str()).await
+        }
     }
 }
 
@@ -405,4 +565,18 @@ pub struct PieData {
     sym_pie: Pies,
     dis_pie: Pies,
     check_pie: Pies,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct NodeInfo {
+    // FIXME rename it to type
+    pub src_type: String,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IncreaseUpdateState {
+    pub node_info: NodeInfo,
+    pub current_nodes_id: Vec<usize>,
+    pub current_links_pair: Vec<(usize, usize)>,
 }

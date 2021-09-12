@@ -21,9 +21,9 @@ export async function fetchJsonData(url, data) {
   return reps;
 }
 
-export function getEchartInstance(selector = "network") {
+export function getEchartInstance(selector = "network", renderer = "svg") {
   var chartDom = document.getElementById(selector);
-  var myChart = echarts.init(chartDom);
+  var myChart = echarts.init(chartDom, null, { renderer: renderer });
   return myChart;
 }
 
@@ -69,9 +69,9 @@ export async function renderNetwork(src_type = "Symptom", name = "肩背痛") {
     darkMode: true,
     // 图的标题
     title: {
+      left: "center",
       top: "5%",
       text: "ECharts 关系图",
-      left: "center",
     },
     // 提示框的配置
     tooltip: {
@@ -84,9 +84,6 @@ export async function renderNetwork(src_type = "Symptom", name = "肩背痛") {
       // 显示工具箱
       show: true,
       feature: {
-        mark: {
-          show: true,
-        },
         // 还原
         restore: {
           show: true,
@@ -96,9 +93,12 @@ export async function renderNetwork(src_type = "Symptom", name = "肩背痛") {
           show: true,
         },
       },
+      top: "5%",
+      right: "5%",
     },
     legend: {
-      top: "10%",
+      left: "center",
+      top: "15%",
       orient: "horizontal",
       selectedMode: "multiple",
       data: categories.map(function (x) {
@@ -112,6 +112,10 @@ export async function renderNetwork(src_type = "Symptom", name = "肩背痛") {
         roam: true, // 是否开启鼠标缩放和平移漫游。默认不开启。如果只想要开启缩放或者平移,可以设置成 'scale' 或者 'move'。设置成 true 为都开启
         // edgeSymbol: ["circle", "arrow"],
         edgeSymbolSize: [2, 10],
+
+        zoom: 0.67,
+        left: "5%",
+        top: "20%",
 
         force: {
           repulsion: 700,
@@ -297,18 +301,29 @@ function displayRelsStats(data) {
       text: "知识图谱关系分布",
       subtext: "",
       left: "center",
-      top: 20,
+      top: "5%",
     },
     tooltip: {
       trigger: "item",
     },
-
+    // 工具箱
+    toolbox: {
+      // 显示工具箱
+      show: true,
+      feature: {
+        // 保存为图片
+        saveAsImage: {
+          show: true,
+        },
+      },
+      top: "5%",
+      right: "5%",
+    },
     legend: {
       type: "scroll",
       orient: "vertical",
-      right: 10,
-      top: 20,
-      bottom: 20,
+      left: "5%",
+      top: "10%",
     },
 
     series: [
@@ -366,4 +381,15 @@ export function main() {
 async function _main() {
   displayNetwork();
   displayStats();
+
+
+  // responsive
+  $(window).on('resize', resizeChart);
+  function resizeChart() {
+    setTimeout(function () {
+    // Resize chart
+    getEchartInstance("network").resize();
+    getEchartInstance("stats_rels").resize();
+    }, 200);
+  }
 }

@@ -6,3 +6,13 @@ RUST_BACKTRACE = "1"
 
 CARGO_INCREMENT = 0
 RUSTC_WRAPPER = '${SCCACHE}'
+
+[tasks.ck]
+extend = "sc"
+command = "mold"
+args = ['-run', 'cargo', 'check']
+
+[tasks.watch]
+extend = "sc"
+command = "mold"
+args = ['-run', 'cargo', 'watch']

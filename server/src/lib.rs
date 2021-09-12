@@ -11,6 +11,7 @@ cfg_if::cfg_if! {
         pub mod neo4j;
         pub mod triple;
         pub mod utils;
+        pub mod session;
 
         pub mod data;
         pub use data::GraphData;

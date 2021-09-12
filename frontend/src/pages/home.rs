@@ -36,8 +36,8 @@ impl Home {
         let node = html! {
                  <div class="block">
                      <div class="container network">
-                         <div id="network" style="width:1200px;height:1000px;margin:auto"></div>
-                         <div id="stats_rels" style="width:1200px;height:1000px;margin:auto"></div>
+                         <div id="network" style="width:90%;height:1000px;margin:auto"></div>
+                         <div id="stats_rels" style="width:90%;height:1000px;margin:auto"></div>
                      </div>
                  </div>
         };

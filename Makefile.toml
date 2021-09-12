@@ -31,6 +31,11 @@ command = "cargo"
 # args = ["run", "--release", "--example", "inject_data", "-p", "server"]
 args = ["run", "--release", "--example", "inject_data"]
 
+# check
+[tasks.ck]
+extend = "sc"
+command = "mold"
+args = ['-run', 'cargo', 'check']
 
 # build
 [tasks.b]

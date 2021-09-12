@@ -15,9 +15,11 @@ use anyhow::Result;
 use platform::GraphData;
 
 use crate::bindings;
-use crate::pages::{home::Home, page_not_found::PageNotFound};
+use crate::pages::{home::Home, page_not_found::PageNotFound, symptom::PageSymptom};
 
-struct App;
+struct App {
+    navbar_active: bool,
+}
 
 #[derive(Routable, PartialEq, Clone, Debug)]
 pub enum Route {
@@ -33,6 +35,9 @@ pub enum Route {
 }
 
 pub(crate) enum AppMsg {
+    // toggle
+    ToggleNavbar,
+
     Search(String),
 }
 
@@ -41,12 +46,21 @@ impl Component for App {
     type Properties = ();
 
     fn create(_ctx: &Context<Self>) -> Self {
-        Self {}
+        Self {
+            navbar_active: false,
+        }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         use AppMsg::*;
+
         match msg {
+            // toggle
+            ToggleNavbar => {
+                self.navbar_active = !self.navbar_active;
+                return true;
+            }
+
             Search(value) => {
                 log::info!("enter input the input is {:?}", value);
                 self.search(value);
@@ -64,7 +78,7 @@ impl Component for App {
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <>
-                { self.view_navbar(ctx.link()) }
+                { self.view_nav(ctx.link()) }
 
                 <main>
                     <Router<Route> render={Router::render(switch)} />
@@ -78,7 +92,10 @@ impl Component for App {
 
 // view function
 impl App {
-    fn view_navbar(&self, link: &Scope<Self>) -> Html {
+    fn view_nav(&self, link: &Scope<Self>) -> Html {
+        let Self { navbar_active, .. } = *self;
+        let active_class = if navbar_active { "is-active" } else { "" };
+
         let onkeypress = link.batch_callback(|e: KeyboardEvent| {
             if e.key() == "Enter" {
                 let input = e
@@ -98,17 +115,18 @@ impl App {
                 <nav class="navbar" role="navigation" aria-label="main navigation">
                     <div class="navbar-brand">
                         <a class="navbar-item" href="https://bulma.io">
-                            <img src="https://bulma.io/images/bulma-logo.png" width="112" height="28"/>
+                            <img src="https://bulma.io/images/bulma-logo.png" width="112" height="28" />
                         </a>
 
-                        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
+                        <a role="button" class={classes!("navbar-burger", "burger" , active_class)} aria-label="menu" aria-expanded="false" onclick={link.callback(|_| AppMsg::ToggleNavbar)}>
                             <span aria-hidden="true"></span>
                             <span aria-hidden="true"></span>
                             <span aria-hidden="true"></span>
                         </a>
                     </div>
 
-                    <div id="navbarBasicExample" class="navbar-menu">
+
+                    <div class={classes!("navbar-menu", active_class)}>
                         <div class="navbar-start">
 
                             <Link<Route> classes={classes!("navbar-item")} route={Route::Home}>
@@ -116,8 +134,8 @@ impl App {
                             </Link<Route>>
 
                             // <a class="navbar-item">
-                            //     { "Home" }
-                            // </a>
+                                // { "Home" }
+                                // </a>
 
                             <Link<Route> classes={classes!("navbar-item")} route={Route::Symptom}>
                                 { "症状" }
@@ -138,7 +156,7 @@ impl App {
                                     <a class="navbar-item">
                                         { "Contact" }
                                     </a>
-                                    <hr class="navbar-divider"/>
+                                    <hr class="navbar-divider" />
                                     <a class="navbar-item">
                                         { "Report an issue" }
                                     </a>
@@ -150,7 +168,7 @@ impl App {
                             <div class="navbar-item">
                                 <div class="field">
                                     <p class="control has-icons-right">
-                <input class="input is-success" type="text" placeholder="肩背痛"  onkeypress={onkeypress} />
+                                        <input class="input is-success" type="text" placeholder="肩背痛" onkeypress={onkeypress} />
                                         <span class="icon is-small is-right">
                                             <i class="fas fa-search"></i>
                                         </span>
@@ -206,7 +224,7 @@ fn switch(routes: &Route) -> Html {
             html! { <Home /> }
         }
         Route::Symptom => {
-            html! { <Home /> }
+            html! { <PageSymptom /> }
         }
         Route::NotFound => {
             html! { <PageNotFound /> }

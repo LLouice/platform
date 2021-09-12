@@ -59,6 +59,7 @@
   - [[#neo4j][Neo4j]]
     - [[#create-relation][create relation]]
     - [[#constraint][constraint]]
+    - [[#debug][debug]]
 - [[#todolist][TodoList]]
 - [[#todo-2][Todo]]
 
@@ -640,7 +641,8 @@
     - [x] include bundle data
     - [x] import all export js snippet
 **** 界面构建
-     - [ ] navbar
+     - [x] navbar
+     - [ ] mobile responsive
 * About Data
 ** Type
 *** "rdf-schema#subClassOf",
@@ -892,6 +894,18 @@
     #+begin_src text
       CREATE CONSTRAINT ON (n:Person) ASSERT n.name IS UNIQUE;
     #+end_src
+
+
+*** debug
+      "match (ps:{}{{name:$name}}) -[r]-> (pt) return ps,r,pt",
+      #+begin_src example
+      MATCH (n:Disease) RETURN n LIMIT 25
+      match (ps:Disease{name:'风热疮'}) -[r]-> (pt) return ps,r,pt
+      match (pt) -[r]-> (ps:Disease{name:'风热疮'}) return ps,r,pt
+      match (pt) -[r]-> (ps:Symptom{name:'肩背痛'}) return ps,r,pt
+      match (ps:Symptom{name:'肩背痛'}) -[r]-> (pt) return ps,r,pt
+      #+end_src
+
 
 
 * TodoList
