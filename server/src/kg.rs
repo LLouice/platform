@@ -144,7 +144,7 @@ impl Kg {
 
         let des = format!("{}::{}", src_type, name);
         let node_id = node_keys.len();
-        *node_keys.entry(des.clone()).or_insert(node_id);
+        let _ = *node_keys.entry(des.clone()).or_insert(node_id);
 
         let main_node = DNode::new(0, name.to_owned(), des, 70, 0);
         nodes.push(main_node);

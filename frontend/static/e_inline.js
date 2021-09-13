@@ -1,9 +1,5 @@
 // common
 
-async function doAjax(args) {
-    let result;
-
-}
 async function fetchJsonData(url, data = {}) {
     const base_url = "http://localhost:9090/";
 

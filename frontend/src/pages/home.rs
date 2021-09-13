@@ -13,25 +13,32 @@ impl Component for Home {
     fn view(&self, _ctx: &Context<Self>) -> Html {
         html! {
             <>
-                <section class="hero is-info is-bold is-large">
-                    <div class="hero-body">
-                        <div class="container">
-                            <h1 class="title">
-                                { "Home" }
-                            </h1>
-                            <h2 class="subtitle">
-                                { "症状图谱" }
-                            </h2>
-                        </div>
-                    </div>
-                </section>
-
                 { self.view_chart() }
             </>
         }
     }
 }
+
+
+
 impl Home {
+    fn view_hero() -> Html {
+        html! {
+            <section class="hero is-info is-bold is-large">
+                <div class="hero-body">
+                    <div class="container">
+                        <h1 class="title">
+                            { "Home" }
+                        </h1>
+                        <h2 class="subtitle">
+                            { "症状图谱" }
+                        </h2>
+                    </div>
+                </div>
+            </section>
+        }
+    }
+
     fn view_chart(&self) -> Html {
         let node = html! {
                  <div class="block">

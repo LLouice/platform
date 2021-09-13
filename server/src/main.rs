@@ -22,6 +22,9 @@ use std::future::Future;
 
 use futures_util::stream::StreamExt as _;
 
+#[macro_use]
+extern crate platform;
+
 use platform::kg::{self, IncreaseUpdateState, Kg, NodeInfo};
 use platform::session::GraphSession;
 
@@ -36,6 +39,40 @@ async fn index(req: HttpRequest) -> &'static str {
     println!("REQ: {:?}", req);
     "Hello world!"
 }
+
+
+#[get("/query_links")]
+async fn query_links(
+    web::Query(node_info): web::Query<NodeInfo>,
+    session: Session,
+) -> Result<HttpResponse, Error> {
+    Kg::query_node_links(&node_info);
+
+    let NodeInfo { src_type, name } = &node_info;
+
+    let res = Kg::convert_dedup(
+        src_type.as_str(),
+        name.as_str(),
+        Kg::query_node_links(&node_info).await,
+    );
+
+    // ugly unpack
+    match res {
+        Ok((graph_data, graph_sess)) => {
+            log::debug!("graph session: {:#?}\n\tnode_keys len: {}", graph_sess, graph_sess.node_keys.len());
+            let res = session.insert(GRAPHSESSION.to_string(), graph_sess);
+            // the can't inser error? why?
+            if let Err(e) = res {
+                log::error!("session insert error: {:?}", e);
+            }
+            assert!(session.get::<GraphSession>(GRAPHSESSION)?.is_some(), "inserted but no data there");
+            Ok(HttpResponse::Ok().json(graph_data))
+        }
+
+        Err(e) => Err(ErrorInternalServerError(e)),
+    }
+}
+
 
 #[get("/get_out_links")]
 async fn get_out_links(
@@ -63,7 +100,7 @@ async fn get_out_links(
     // ugly unpack
     match res {
         Ok((graph_data, graph_sess)) => {
-            log::debug!("graph session: {:#?}", graph_sess);
+            log::debug!("graph session: {:#?}\n\tnode_keys len: {}", graph_sess, graph_sess.node_keys.len());
             let res = session.insert(GRAPHSESSION.to_string(), graph_sess);
             // the can't inser error? why?
             if let Err(e) = res {
@@ -138,7 +175,7 @@ async fn increase_update(
     sess: Session,
 ) -> Result<HttpResponse, Error> {
     if let Some(graph_sess) = sess.get::<GraphSession>(GRAPHSESSION)? {
-        log::debug!("pre graph session: {:#?}", graph_sess);
+        log::debug!("pre graph session: {:#?},\n\tnode_keys len: {}", graph_sess, graph_sess.node_keys.len());
 
         let IncreaseUpdateState {
             node_info,
@@ -161,7 +198,7 @@ async fn increase_update(
 
         match res {
             Ok((graph_data, graph_sess_new)) => {
-                log::debug!("graph session: {:#?}", graph_sess_new);
+                log::debug!("graph session: {:#?}\n\tnode_keys len: {}", graph_sess_new, graph_sess_new.node_keys.len());
                 let res = sess.insert(GRAPHSESSION.to_string(), graph_sess_new);
                 if let Err(e) = res {
                     log::error!("session insert error: {:?}", e);
@@ -264,9 +301,34 @@ async fn main() -> std::io::Result<()> {
     // std::env::set_var("RUST_LOG", "actix_web=info");
     // let workspace_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     // std::env::set_current_dir(workspace_dir)?;
-    env_logger::init();
 
-    eprint!("RUST_LOG: {:?}", std::env::var("RUST_LOG"));
+    platform::init_env_logger!();
+
+//     use std::io::Write;
+//     use log::LevelFilter;
+// 
+//     env_logger::Builder::new()
+//             .format(|buf, record| {
+//                 writeln!(
+//                     buf,
+//                     "{}:{} {} [{}] - {}",
+//                     record.file().unwrap_or("unknown"),
+//                     record.line().unwrap_or(0),
+//                     chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+//                     record.level(),
+//                     record.args()
+//                 )
+//             })
+//             .filter(None, LevelFilter::Debug)
+//             .init();
+
+
+
+
+
+
+
+    eprintln!("RUST_LOG: {:?}", std::env::var("RUST_LOG"));
 
     HttpServer::new(|| {
         App::new()

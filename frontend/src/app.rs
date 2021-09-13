@@ -17,9 +17,41 @@ use platform::GraphData;
 use crate::bindings;
 use crate::pages::{home::Home, page_not_found::PageNotFound, symptom::PageSymptom};
 
+#[derive(Debug, Default)]
 struct App {
+    search_cat: Category,
     navbar_active: bool,
 }
+
+#[derive(Debug, Clone)]
+pub enum Category {
+    Symptom,
+    Disease,
+    Drug,
+    Department,
+    Check,
+}
+
+impl std::fmt::Display for Category {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+
+        let cat = match self{
+            Category::Symptom => { "Symptom" }
+            Category::Disease => { "Disease" }
+            Category::Drug => { "Drug" }
+            Category::Department => { "Department" }
+            Category::Check => { "Check" }
+        };
+            write!(f, "{}", cat)
+        }
+}
+
+impl Default for Category {
+    fn default() -> Self {
+        Category::Symptom
+    }
+}
+
 
 #[derive(Routable, PartialEq, Clone, Debug)]
 pub enum Route {
@@ -37,9 +69,10 @@ pub enum Route {
 pub(crate) enum AppMsg {
     // toggle
     ToggleNavbar,
-
     Search(String),
+    ChangeSearchCat(Category),
 }
+
 
 impl Component for App {
     type Message = AppMsg;
@@ -47,7 +80,9 @@ impl Component for App {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
+            search_cat: Category::Symptom,
             navbar_active: false,
+            ..Default::default()
         }
     }
 
@@ -58,17 +93,20 @@ impl Component for App {
             // toggle
             ToggleNavbar => {
                 self.navbar_active = !self.navbar_active;
-                return true;
+                true
             }
 
             Search(value) => {
                 log::info!("enter input the input is {:?}", value);
                 self.search(value);
+                true
             }
-            _ => {}
+            ChangeSearchCat(cat) => {
+                self.search_cat = cat;
+                true
+            }
+            _ => {false}
         }
-
-        false
     }
 
     fn changed(&mut self, ctx: &Context<Self>) -> bool {
@@ -141,31 +179,12 @@ impl App {
                                 { "症状" }
                             </Link<Route>>
 
-                            <div class="navbar-item has-dropdown is-hoverable">
-                                <a class="navbar-link">
-                                    { "More" }
-                                </a>
-
-                                <div class="navbar-dropdown">
-                                    <a class="navbar-item">
-                                        { "About" }
-                                    </a>
-                                    <a class="navbar-item">
-                                        { "Jobs" }
-                                    </a>
-                                    <a class="navbar-item">
-                                        { "Contact" }
-                                    </a>
-                                    <hr class="navbar-divider" />
-                                    <a class="navbar-item">
-                                        { "Report an issue" }
-                                    </a>
-                                </div>
-                            </div>
                         </div>
 
                         <div class="navbar-end">
-                            <div class="navbar-item">
+                            { self.view_nav_cats(link) }
+
+                             <div class="navbar-item">
                                 <div class="field">
                                     <p class="control has-icons-right">
                                         <input class="input is-success" type="text" placeholder="肩背痛" onkeypress={onkeypress} />
@@ -173,7 +192,6 @@ impl App {
                                             <i class="fas fa-search"></i>
                                         </span>
                                     </p>
-
                                 </div>
                             </div>
                         </div>
@@ -181,6 +199,39 @@ impl App {
                 </nav>
             </section>
         }
+    }
+
+    fn view_nav_cats(&self, link: &Scope<Self>) -> Html {
+        html!{
+            <div class="navbar-item has-dropdown is-hoverable">
+                <a class="navbar-link is-arrowless">
+                    <div class="field has-addons">
+                        <span class="tag is-warning is-light"> { self.search_cat.clone() }  </span>
+                    </div>
+                </a>
+
+                <div class="navbar-dropdown">
+                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Symptom))} >
+                        { "Symptom" } 
+                    </a>
+
+                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Disease))} >
+                        { "Disease" }
+                    </a>
+                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Drug))} >
+                        { "Drug" }
+                    </a>
+                    // <hr class="navbar-divider" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Department))} >
+                    <a class="navbar-item">
+                        { "Department" }
+                    </a>
+                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Check))} >
+                        { "Check" }
+                    </a>
+                </div>
+            </div>
+        }
+
     }
 
     fn view_footer(&self) -> Html {
@@ -197,9 +248,11 @@ impl App {
     }
 }
 
-// function
+
+// method
 impl App {
-    fn search(&self, name: String) {
+
+    fn search(&mut self, name: String) {
         // let resp = spawn_local(async move {
         //     let uri = format!(
         //         "http://localhost:9090/get_out_links?src_type=Symptom&name={}",
@@ -211,12 +264,12 @@ impl App {
         //     let graph_data: GraphData = resp.json().await.unwrap();
         //     log::info!("graph_data: {:?}", graph_data);
         // });
-
         unsafe {
-            spawn_local(bindings::display_network("Symptom".to_string(), name));
+            spawn_local(bindings::display_network(self.search_cat.to_string(), name));
         }
     }
 }
+
 
 fn switch(routes: &Route) -> Html {
     match routes {
