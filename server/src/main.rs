@@ -1,32 +1,33 @@
-use serde::{Deserialize, Serialize};
+#[macro_use]
+extern crate platform;
+
+use std::{env, io};
+// use anyhow::Result; use serde::Deserialize;
+use std::collections::HashSet;
+use std::future::Future;
 
 use actix_cors::Cors;
 use actix_files::{self as fs, Files};
 // use actix_web::{
 //     error, get, guard, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer,
 // };
+use actix_redis::RedisSession;
 use actix_session::{CookieSession, Session};
+// use actix_sled_session::{Session, SledSession};
 use actix_web::{
+    App,
     error::{ErrorBadRequest, ErrorInternalServerError, InternalError},
+    Error,
     get,
-    http::header,
-    http::StatusCode,
-    middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, Result,
+    http::header, http::StatusCode, HttpRequest, HttpResponse, HttpServer, middleware, post, Responder, Result, web,
 };
-
-
-// use anyhow::Result; use serde::Deserialize;
-use std::collections::HashSet;
-use std::{env, io};
-use std::future::Future;
-
 use futures_util::stream::StreamExt as _;
-
-#[macro_use]
-extern crate platform;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 use platform::kg::{self, IncreaseUpdateState, Kg, NodeInfo};
 use platform::session::GraphSession;
+
 
 const GRAPHSESSION: &'static str = "GraphSession";
 
@@ -40,13 +41,12 @@ async fn index(req: HttpRequest) -> &'static str {
     "Hello world!"
 }
 
-
 #[get("/query_links")]
 async fn query_links(
     web::Query(node_info): web::Query<NodeInfo>,
     session: Session,
 ) -> Result<HttpResponse, Error> {
-    Kg::query_node_links(&node_info);
+    Kg::query_node_links(&node_info).await;
 
     let NodeInfo { src_type, name } = &node_info;
 
@@ -59,20 +59,26 @@ async fn query_links(
     // ugly unpack
     match res {
         Ok((graph_data, graph_sess)) => {
-            log::debug!("graph session: {:#?}\n\tnode_keys len: {}", graph_sess, graph_sess.node_keys.len());
+            log::debug!(
+                "graph session: {:#?}\n\tnode_keys len: {}",
+                graph_sess,
+                graph_sess.node_keys.len()
+            );
             let res = session.insert(GRAPHSESSION.to_string(), graph_sess);
             // the can't inser error? why?
             if let Err(e) = res {
                 log::error!("session insert error: {:?}", e);
             }
-            assert!(session.get::<GraphSession>(GRAPHSESSION)?.is_some(), "inserted but no data there");
+            assert!(
+                session.get::<GraphSession>(GRAPHSESSION)?.is_some(),
+                "inserted but no data there"
+            );
             Ok(HttpResponse::Ok().json(graph_data))
         }
 
         Err(e) => Err(ErrorInternalServerError(e)),
     }
 }
-
 
 #[get("/get_out_links")]
 async fn get_out_links(
@@ -100,13 +106,20 @@ async fn get_out_links(
     // ugly unpack
     match res {
         Ok((graph_data, graph_sess)) => {
-            log::debug!("graph session: {:#?}\n\tnode_keys len: {}", graph_sess, graph_sess.node_keys.len());
+            log::debug!(
+                "graph session: {:#?}\n\tnode_keys len: {}",
+                graph_sess,
+                graph_sess.node_keys.len()
+            );
             let res = session.insert(GRAPHSESSION.to_string(), graph_sess);
             // the can't inser error? why?
             if let Err(e) = res {
                 log::error!("session insert error: {:?}", e);
             }
-            assert!(session.get::<GraphSession>(GRAPHSESSION)?.is_some(), "inserted but no data there");
+            assert!(
+                session.get::<GraphSession>(GRAPHSESSION)?.is_some(),
+                "inserted but no data there"
+            );
             Ok(HttpResponse::Ok().json(graph_data))
         }
 
@@ -175,7 +188,11 @@ async fn increase_update(
     sess: Session,
 ) -> Result<HttpResponse, Error> {
     if let Some(graph_sess) = sess.get::<GraphSession>(GRAPHSESSION)? {
-        log::debug!("pre graph session: {:#?},\n\tnode_keys len: {}", graph_sess, graph_sess.node_keys.len());
+        log::debug!(
+            "pre graph session: {:#?},\n\tnode_keys len: {}",
+            graph_sess,
+            graph_sess.node_keys.len()
+        );
 
         let IncreaseUpdateState {
             node_info,
@@ -198,7 +215,11 @@ async fn increase_update(
 
         match res {
             Ok((graph_data, graph_sess_new)) => {
-                log::debug!("graph session: {:#?}\n\tnode_keys len: {}", graph_sess_new, graph_sess_new.node_keys.len());
+                log::debug!(
+                    "graph session: {:#?}\n\tnode_keys len: {}",
+                    graph_sess_new,
+                    graph_sess_new.node_keys.len()
+                );
                 let res = sess.insert(GRAPHSESSION.to_string(), graph_sess_new);
                 if let Err(e) = res {
                     log::error!("session insert error: {:?}", e);
@@ -251,9 +272,8 @@ async fn _session(session: Session) -> Result<&'static str, Error> {
 async fn _session2(session: Session) -> Result<&'static str, Error> {
     // access session data
     //
-    
-    log::debug!("counter session: {:?}" ,session.get::<i32>("counter")?);
 
+    log::debug!("counter session: {:?}", session.get::<i32>("counter")?);
 
     log::debug!(
         "GraphSession: {:?}",
@@ -263,38 +283,30 @@ async fn _session2(session: Session) -> Result<&'static str, Error> {
     Ok("Welcome!")
 }
 
-
-
 #[derive(Deserialize, Debug)]
 struct Foo {
     x: usize,
 }
 
 #[post("/debug/post-json")]
-async fn post_json(
-    foo: web::Json<Foo>,
-    sess: Session,
-) -> impl Responder {
+async fn post_json(foo: web::Json<Foo>, sess: Session) -> impl Responder {
     let foo = format!("{:?}", foo);
     eprintln!("foo: {:?}", foo);
     foo
-} 
+}
 
 //// Handler can have up to 12 extractor, order doesn't matter!
 /// inpect post payload
 #[post("/debug/inspect-post")]
 async fn _inspect_post(mut body: web::Payload) -> Result<String> {
     let mut bytes = web::BytesMut::new();
-        while let Some(item) = body.next().await {
-            bytes.extend_from_slice(&item?);
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item?);
     }
-    let info  = serde_json::from_slice::<Foo>(&bytes);
+    let info = serde_json::from_slice::<Foo>(&bytes);
     eprintln!("info: {:?}", info);
     Ok(format!("Request Body Bytes:\n{:?}", bytes))
 }
-
-
-
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -304,33 +316,33 @@ async fn main() -> std::io::Result<()> {
 
     platform::init_env_logger!();
 
-//     use std::io::Write;
-//     use log::LevelFilter;
-// 
-//     env_logger::Builder::new()
-//             .format(|buf, record| {
-//                 writeln!(
-//                     buf,
-//                     "{}:{} {} [{}] - {}",
-//                     record.file().unwrap_or("unknown"),
-//                     record.line().unwrap_or(0),
-//                     chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
-//                     record.level(),
-//                     record.args()
-//                 )
-//             })
-//             .filter(None, LevelFilter::Debug)
-//             .init();
-
-
-
-
-
-
+    //     use std::io::Write;
+    //     use log::LevelFilter;
+    //
+    //     env_logger::Builder::new()
+    //             .format(|buf, record| {
+    //                 writeln!(
+    //                     buf,
+    //                     "{}:{} {} [{}] - {}",
+    //                     record.file().unwrap_or("unknown"),
+    //                     record.line().unwrap_or(0),
+    //                     chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+    //                     record.level(),
+    //                     record.args()
+    //                 )
+    //             })
+    //             .filter(None, LevelFilter::Debug)
+    //             .init();
 
     eprintln!("RUST_LOG: {:?}", std::env::var("RUST_LOG"));
 
-    HttpServer::new(|| {
+    // Generate a random 32 byte key. Note that it is important to use a unique
+    // private key for every project. Anyone with access to the key can generate
+    // authentication cookies for any user!
+    let private_key = rand::thread_rng().gen::<[u8; 32]>();
+    // let session_backend = SledSession::new_default()?;
+
+    HttpServer::new(move || {
         App::new()
             // enable logger
             .wrap(
@@ -347,10 +359,14 @@ async fn main() -> std::io::Result<()> {
                     .supports_credentials()
                     .max_age(3600),
             )
-            .wrap(CookieSession::signed(&[0; 32]).secure(false))
+            // redis session middleware
+            // .wrap(session_backend.clone())
+            .wrap(RedisSession::new("127.0.0.1:6379", &private_key))
+            // .wrap(CookieSession::signed(&[0; 32]).secure(false))
             .wrap(middleware::Logger::default())
             .service(Files::new("/static", "static").show_files_listing())
             .service(demo)
+            .service(query_links)
             .service(get_out_links)
             .service(get_out_links_d3)
             .service(increase_update)
@@ -373,9 +389,10 @@ async fn main() -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use actix_web::{App, Error, http, test, web};
     use actix_web::dev::Service;
-    use actix_web::{http, test, web, App, Error};
+
+    use super::*;
 
     #[actix_rt::test]
     async fn test_index() -> Result<(), Error> {

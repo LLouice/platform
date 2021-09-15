@@ -11,8 +11,20 @@ LD_LIBRARY_PATH = { script = ["echo ${LIBTORCH}/lib:$LD_LIBRARY_PATH"] }
 
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 
+
+# ini, init is cargo-make default task name
+[tasks.ini]
+run_task = { name = ["init_neo4j", "redis", "inc_fs_notify"], parallel = true, fork = true }
+#run_task = { name = ["init_neo4j", "redis"], fork = true }
+
+
+# redis
+[tasks.redis]
+command = "redis-server"
+
 # database
 [tasks.init_neo4j]
+ignore_errors = true
 script = '''
   docker run \
         -d \
@@ -127,10 +139,14 @@ script = '''
 command = "trunk"
 args = ["serve"]
 # args = ["serve", "--port=9091"]
+#dependencies = ["inc_fs_notify"]
 
 [tasks.fr.env]
 CARGO_INCREMENT = 0
 RUSTC_WRAPPER = '${SCCACHE}'
+
+[tasks.inc_fs_notify]
+script = "sudo sysctl fs.inotify.max_user_watches=32768"
 
 
 [tasks.cl]

@@ -1,16 +1,12 @@
-use wasm_bindgen_futures::{spawn_local, JsFuture};
-use wasm_logger;
-
-use wasm_bindgen::JsCast;
-
+use anyhow::Result;
 use reqwasm::http::{Request, Response};
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::{JsFuture, spawn_local};
+use wasm_logger;
 use web_sys::HtmlInputElement;
-
 use yew::html::Scope;
 use yew::prelude::*;
 use yew_router::prelude::*;
-
-use anyhow::Result;
 
 use platform::GraphData;
 
@@ -19,7 +15,9 @@ use crate::pages::{home::Home, page_not_found::PageNotFound, symptom::PageSympto
 
 #[derive(Debug, Default)]
 struct App {
+    search_inp: NodeRef,
     search_cat: Category,
+    search_placeholder: String,
     navbar_active: bool,
 }
 
@@ -34,16 +32,15 @@ pub enum Category {
 
 impl std::fmt::Display for Category {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-
-        let cat = match self{
-            Category::Symptom => { "Symptom" }
-            Category::Disease => { "Disease" }
-            Category::Drug => { "Drug" }
-            Category::Department => { "Department" }
-            Category::Check => { "Check" }
+        let cat = match self {
+            Category::Symptom => "Symptom",
+            Category::Disease => "Disease",
+            Category::Drug => "Drug",
+            Category::Department => "Department",
+            Category::Check => "Check",
         };
-            write!(f, "{}", cat)
-        }
+        write!(f, "{}", cat)
+    }
 }
 
 impl Default for Category {
@@ -51,7 +48,6 @@ impl Default for Category {
         Category::Symptom
     }
 }
-
 
 #[derive(Routable, PartialEq, Clone, Debug)]
 pub enum Route {
@@ -73,7 +69,6 @@ pub(crate) enum AppMsg {
     ChangeSearchCat(Category),
 }
 
-
 impl Component for App {
     type Message = AppMsg;
     type Properties = ();
@@ -81,6 +76,7 @@ impl Component for App {
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
             search_cat: Category::Symptom,
+            search_placeholder: String::from("肩背痛"),
             navbar_active: false,
             ..Default::default()
         }
@@ -102,10 +98,20 @@ impl Component for App {
                 true
             }
             ChangeSearchCat(cat) => {
+                // change search_placeholder
+                let ph = match cat {
+                    Category::Symptom => { "肩背痛" }
+                    Category::Disease => { "皮肤炎症" }
+                    Category::Drug => { "undefined" }
+                    Category::Department => { "undefined" }
+                    Category::Check => { "undefined" }
+                };
+                self.search_placeholder = ph.to_string();
+
                 self.search_cat = cat;
                 true
             }
-            _ => {false}
+            _ => false,
         }
     }
 
@@ -187,7 +193,8 @@ impl App {
                              <div class="navbar-item">
                                 <div class="field">
                                     <p class="control has-icons-right">
-                                        <input class="input is-success" type="text" placeholder="肩背痛" onkeypress={onkeypress} />
+                                        // <input ref={self.search_inp.clone()} class="input is-success" type="text" placeholder="肩背痛" onkeypress={onkeypress} />
+                                        <input ref={self.search_inp.clone()} class="input is-success" type="text" placeholder={self.search_placeholder.clone()} onkeypress={onkeypress} />
                                         <span class="icon is-small is-right">
                                             <i class="fas fa-search"></i>
                                         </span>
@@ -202,7 +209,7 @@ impl App {
     }
 
     fn view_nav_cats(&self, link: &Scope<Self>) -> Html {
-        html!{
+        html! {
             <div class="navbar-item has-dropdown is-hoverable">
                 <a class="navbar-link is-arrowless">
                     <div class="field has-addons">
@@ -212,7 +219,7 @@ impl App {
 
                 <div class="navbar-dropdown">
                     <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Symptom))} >
-                        { "Symptom" } 
+                        { "Symptom" }
                     </a>
 
                     <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Disease))} >
@@ -231,7 +238,6 @@ impl App {
                 </div>
             </div>
         }
-
     }
 
     fn view_footer(&self) -> Html {
@@ -248,10 +254,8 @@ impl App {
     }
 }
 
-
 // method
 impl App {
-
     fn search(&mut self, name: String) {
         // let resp = spawn_local(async move {
         //     let uri = format!(
@@ -264,12 +268,12 @@ impl App {
         //     let graph_data: GraphData = resp.json().await.unwrap();
         //     log::info!("graph_data: {:?}", graph_data);
         // });
+        log::debug!("search cat: {}", self.search_cat);
         unsafe {
             spawn_local(bindings::display_network(self.search_cat.to_string(), name));
         }
     }
 }
-
 
 fn switch(routes: &Route) -> Html {
     match routes {

@@ -49,7 +49,8 @@ export async function displayNetwork(src_type = "Symptom", name = "肩背痛") {
 }
 
 export async function renderNetwork(src_type = "Symptom", name = "肩背痛") {
-  let url = "get_out_links";
+  // let url = "get_out_links";
+  let url = "query_links";
   let data = {
     src_type: src_type,
     name: name,
