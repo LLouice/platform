@@ -63,10 +63,12 @@ pub enum Route {
 }
 
 pub(crate) enum AppMsg {
+    Nop,
     // toggle
     ToggleNavbar,
     Search(String),
     ChangeSearchCat(Category),
+    FillPlaceholder,
 }
 
 impl Component for App {
@@ -98,6 +100,9 @@ impl Component for App {
                 true
             }
             ChangeSearchCat(cat) => {
+                // clear input
+                let mut inp = self.get_input();
+                inp.set_value("");
                 // change search_placeholder
                 let ph = match cat {
                     Category::Symptom => { "肩背痛" }
@@ -110,6 +115,15 @@ impl Component for App {
 
                 self.search_cat = cat;
                 true
+            }
+            FillPlaceholder => {
+                let mut inp = self.get_input();
+                if inp.value().len() == 0 {
+                    inp.set_value(inp.placeholder().as_str());
+                    true
+                } else {
+                    false
+                }
             }
             _ => false,
         }
@@ -150,9 +164,16 @@ impl App {
 
                 value.map(AppMsg::Search)
             } else {
+                log::debug!("search input -> event: {:?}, enter key: {:?}", e, e.key());
                 None
             }
         });
+
+        let fill_placeholder = link.callback(|_| {
+            AppMsg::FillPlaceholder
+        }
+        );
+
 
         html! {
             <section class="navbar">
@@ -194,7 +215,7 @@ impl App {
                                 <div class="field">
                                     <p class="control has-icons-right">
                                         // <input ref={self.search_inp.clone()} class="input is-success" type="text" placeholder="肩背痛" onkeypress={onkeypress} />
-                                        <input ref={self.search_inp.clone()} class="input is-success" type="text" placeholder={self.search_placeholder.clone()} onkeypress={onkeypress} />
+                                        <input ref={self.search_inp.clone()} class="input is-success" type="text" placeholder={self.search_placeholder.clone()} onkeypress={onkeypress} onclick={fill_placeholder} />
                                         <span class="icon is-small is-right">
                                             <i class="fas fa-search"></i>
                                         </span>
@@ -256,6 +277,9 @@ impl App {
 
 // method
 impl App {
+    fn get_input(&self) -> HtmlInputElement {
+        self.search_inp.cast::<HtmlInputElement>().unwrap()
+    }
     fn search(&mut self, name: String) {
         // let resp = spawn_local(async move {
         //     let uri = format!(
