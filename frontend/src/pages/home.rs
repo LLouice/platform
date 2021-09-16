@@ -1,7 +1,9 @@
-use crate::bindings;
 use yew::prelude::*;
 
+use crate::app::App;
+
 pub struct Home;
+
 impl Component for Home {
     type Message = ();
     type Properties = ();
@@ -22,6 +24,7 @@ impl Component for Home {
 
 
 impl Home {
+    #[allow(dead_code)]
     fn view_hero() -> Html {
         html! {
             <section class="hero is-info is-bold is-large">
@@ -48,13 +51,12 @@ impl Home {
                      </div>
                  </div>
         };
+        App::display_main();
 
-        unsafe {
-            bindings::main();
-        }
         node
     }
 
+    #[allow(dead_code)]
     fn view_info_tiles(&self) -> Html {
         html! {
             <>

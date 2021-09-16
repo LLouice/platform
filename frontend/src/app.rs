@@ -1,22 +1,19 @@
-use anyhow::Result;
 use js_sys::Function;
-use reqwasm::http::{Request, Response};
-use wasm_bindgen::{closure::Closure, JsCast};
-use wasm_bindgen_futures::{JsFuture, spawn_local};
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use wasm_bindgen_futures::spawn_local;
 use wasm_logger;
-use web_sys::{Document, HtmlElement, HtmlInputElement};
+use web_sys::{Element, HtmlElement, HtmlInputElement};
 use yew::html::Scope;
 use yew::prelude::*;
 use yew::utils::{document, window};
 use yew_router::prelude::*;
 
-use platform::GraphData;
-
+use crate::{into_js_fn, into_js_fn_mut, js_get, js_set};
 use crate::bindings;
 use crate::pages::{home::Home, page_not_found::PageNotFound, symptom::PageSymptom};
 
 #[derive(Debug, Default)]
-struct App {
+pub(crate) struct App {
     search_inp: NodeRef,
     search_cat: Category,
     search_placeholder: String,
@@ -65,6 +62,7 @@ pub enum Route {
 }
 
 pub(crate) enum AppMsg {
+    #[allow(dead_code)]
     Nop,
     // toggle
     ToggleNavbar,
@@ -86,7 +84,7 @@ impl Component for App {
         }
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         use AppMsg::*;
 
         match msg {
@@ -103,7 +101,7 @@ impl Component for App {
             }
             ChangeSearchCat(cat) => {
                 // clear input
-                let mut inp = self.get_input();
+                let inp = self.get_input();
                 inp.set_value("");
                 // change search_placeholder
                 let ph = match cat {
@@ -119,7 +117,7 @@ impl Component for App {
                 true
             }
             FillPlaceholder => {
-                let mut inp = self.get_input();
+                let inp = self.get_input();
                 if inp.value().len() == 0 {
                     inp.set_value(inp.placeholder().as_str());
                     true
@@ -131,7 +129,7 @@ impl Component for App {
         }
     }
 
-    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+    fn changed(&mut self, _ctx: &Context<Self>) -> bool {
         false
     }
 
@@ -296,30 +294,42 @@ impl App {
         //     log::info!("graph_data: {:?}", graph_data);
         // });
         log::debug!("search cat: {}", self.search_cat);
-        unsafe {
-            spawn_local(bindings::display_network(self.search_cat.to_string(), name));
-        }
+        spawn_local(bindings::display_network(self.search_cat.to_string(), name));
         // insert slider
         log::info!("insert slider...");
         Self::insert_slider();
     }
+}
 
-    fn insert_slider() -> Result<()> {
+
+// function
+impl App {
+    pub fn display_main() {
+        spawn_local(async {
+            bindings::main().await;
+            App::insert_slider();
+        });
+    }
+
+    fn insert_slider() {
+        let _ = Self::_insert_slider().map_err(|e| {
+            log::error!("{:?}", e);
+        });
+    }
+
+    // FIXME: use ? instead of unwrap, expect
+    fn _insert_slider() -> std::result::Result<(), JsValue> {
         log::info!("insert slider...");
-        let mut doc = document();
-        let mut win = window();
-        let network_svg = doc.query_selector("#network svg").map_err(|e| {
-            log::error!("erorr on query svg");
-            web_sys::console::log_2(&">>>>".into(), &e);
-            anyhow::anyhow!("query error!")
-        }
-        )?;
+        let doc = document();
+        let win = window();
+        let network_svg = doc.query_selector("#network svg")?;
         log::debug!("network_svg: {:?}", network_svg);
         // FIXME: timeout retry
         if let Some(network_svg) = network_svg {
+            log::debug!("network_svg exists");
             const SVGNS: Option<&str> = Some("http://www.w3.org/2000/svg"); // svg namespace
-            let mut slider: HtmlElement = doc.create_element_ns(SVGNS, "g").unwrap().unchecked_into();
-            let mut line = doc.create_element_ns(SVGNS, "line").unwrap();
+            let slider: HtmlElement = doc.create_element_ns(SVGNS, "g").unwrap().unchecked_into();
+            let line = doc.create_element_ns(SVGNS, "line").unwrap();
             let width: f64 = win.inner_width().unwrap().as_f64().expect("error on get window inner_width");
             let height: f64 = win.inner_height().unwrap().as_f64().expect("error on get window inner_width");
             // line position
@@ -328,7 +338,9 @@ impl App {
             let line_len = width * 0.1;
             let x2 = x1 + line_len;
             let r = 5_f64;
-            let c = x1 + r + line_len / 2.0;
+            let c = x1 + line_len / 2.0;
+
+            log::info!("x1: {:?}, x2: {:?}, c: {:?}", x1, x2, c);
 
             // set line attributes
             line.set_attribute_ns(None, "x1", x1.to_string().as_str()).unwrap();
@@ -337,63 +349,109 @@ impl App {
             line.set_attribute_ns(None, "y2", y1.to_string().as_str()).unwrap();
             line.set_attribute_ns(None, "stroke", "#45c589").unwrap();
             line.set_attribute_ns(None, "stroke-width", r.to_string().as_str()).unwrap();
+            line.set_attribute_ns(None, "id", "sliderLine").unwrap();
             slider.append_child(&line).expect("error on slider append line child");
             // dot
-            let mut dot: HtmlElement = doc.create_element_ns(SVGNS, "circle").unwrap().unchecked_into();
+            let dot: HtmlElement = doc.create_element_ns(SVGNS, "circle").unwrap().unchecked_into();
             dot.set_attribute_ns(None, "r", r.to_string().as_str()).unwrap();
             dot.set_attribute_ns(None, "transform", &format!("translate({} {})", c, y1)).unwrap();
             dot.set_attribute_ns(None, "id", "dot").unwrap();
 
+            log::debug!("set dot attribute done!");
+
+            // the dot target attr
+            let dot_attr_e = js_get!(&dot, "transform", "baseVal", "0", "matrix", "e")?;
+            log::info!("dot_attr_e: {:?}", dot_attr_e);
+
             // drag
-            let dot_c = dot.clone();
-            let on_mouse_down: Function = Closure::once_into_js(move || {
-                let dot = dot_c;
+            // here move but not consume value
+            let on_mousedown: Function = into_js_fn_mut!(move || {
                 let e: MouseEvent = window().event().unchecked_into();
                 e.prevent_default();
+                let doc = document();
+                let line: HtmlElement = doc.query_selector("#sliderLine").unwrap().unwrap().unchecked_into();
+                let dot: HtmlElement = doc.query_selector("#dot").unwrap().unwrap().unchecked_into();
 
                 // init info
-                let init_x: i32 = e.client_x();
-                let start_ptr_x: i32 = dot.client_left();
+                let line_left = line.unchecked_into::<Element>().get_bounding_client_rect().x();
+                // svg margin left: for give transform value in svg
+                let svg_ml: f64 = line_left - x1;
+                log::debug!("line left: {}", line_left);
+                log::debug!("svg_ml: {}", svg_ml);
 
+                // for calc move distance
+                let start_ptr_x: i32 = e.client_x();
+                // the dot center init x
+                let init_x: f64 = dot.unchecked_ref::<Element>().get_bounding_client_rect().x() - svg_ml + r;
 
+                log::debug!("x: {:?}, start_ptr_x: {:?}, init_x: {:?}, screen_x: {:?}, offset_x: {:?}, client_left: {:?}, offset_left: {:?}",
+                e.x(),
+                    start_ptr_x,
+                    init_x,
+                    e.screen_x(),
+                    e.offset_x(),
+                    dot.client_left(),
+                    dot.offset_left(),
+                );
+
+                // generate on fly
                 let on_mouse_move: Function = Closure::wrap(Box::new(move || {
+                    log::info!("on mouse move");
                     let e: MouseEvent = window().event().unchecked_into();
-                    let move_distance: i32 = e.client_x();
-                    let mut new_x = (start_ptr_x + move_distance) as f64;
-                    if new_x < x1 {
-                        new_x = x1;
+                    let move_distance: i32 = e.client_x() - start_ptr_x;
+                    let mut new_x = init_x + move_distance as f64;
+                    log::debug!("client_x: {:?}, move_distance: {:?}, new_x: {:?}", e.client_x(), move_distance, new_x);
+                    let _x1 = x1 + r;
+                    if new_x < _x1 {
+                        new_x = _x1;
                     }
                     let _x2 = x2 - 2. * r;
                     if new_x > _x2 {
                         new_x = _x2;
                     }
-                    // FIXME:  change the e
-                    dot.set_attribute_ns(None, "transform", &format!("translate({} {})", new_x as f64 + r, y1)).expect("error on set dot transform");
+                    log::debug!("new_x: {:?}", new_x);
+                    let _ = js_set!(&dot, "transform", "baseVal", "0", "matrix" => "e", new_x).map_err(|e| log::error!("{:?}", e));
+                    let dot_attr_e = js_get!(&dot, "transform", "baseVal", "0", "matrix", "e");
+                    log::info!("dot_attr_e: {:?}", dot_attr_e);
+
                 }) as Box<dyn FnMut()>).into_js_value().into();
+
                 doc.add_event_listener_with_callback("mousemove", &on_mouse_move).expect("error on add mousemove listener");
 
+                // generate on fly
                 // only call once,otherwise throw a exception, so don't need remove self(can't do it in rust actually)
+                let on_mouse_move_c  = on_mouse_move.clone();
+                // run many time, it remove listener
                 let on_mouse_up: Function = Closure::once_into_js(move || {
-                    doc.remove_event_listener_with_callback("mousemove", &on_mouse_move).expect("error on remove mousereomve listener");
+                    document().remove_event_listener_with_callback("mousemove", &on_mouse_move_c).expect("error on remove mousemove listener");
                 }).into();
 
-                let doc = document();
-
-                doc.add_event_listener_with_callback("mouseup", &on_mouse_up).expect("error on add mouseup listener");
+                // here on_mouse_up will free after on_mouse_up is called
+                doc.add_event_listener_with_callback_and_add_event_listener_options("mouseup", &on_mouse_up,
+                   web_sys::AddEventListenerOptions::new().once(true)
+                ).expect("error on add mouseup listener");
             }).into();
 
-            dot.set_onmousedown(Some(&on_mouse_down));
+            dot.set_onmousedown(Some(&on_mousedown));
             dot.set_ondrag(None);
 
             slider.append_child(&dot).expect("error on slider append dot child");
 
-
-            let on_dbclick: Function = Closure::wrap(Box::new(move || {}) as Box<dyn FnMut()>).into_js_value().into();
+            let on_dbclick: Function = into_js_fn!(move ||{
+                log::info!("on dblclick");
+                let _e: MouseEvent = window().event().unchecked_into();
+                let dot = document().query_selector("#dot").unwrap().unwrap();
+                let _ = js_set!(&dot, "transform", "baseVal", "0", "matrix" => "e", c).map_err(|e| log::error!("{:?}", e));
+                // dot.set_attribute_ns(None, "transform", &format!("translate({} {})", c, y1)).unwrap();
+            });
             slider.set_ondblclick(Some(&on_dbclick));
             network_svg.append_child(&slider).expect("error on append slider");
+
+            log::debug!("insert slider done!");
+
             Ok(())
         } else {
-            anyhow::bail!("network svg is not exists now");
+            Err(JsValue::from_str("network svg is not exists now"))
         }
     }
 }
@@ -432,8 +490,11 @@ pub fn run() {
     // yew::run_loop();
 
     yew::start_app_in_element::<App>(mount_point);
-    let res = App::insert_slider();
-    log::debug!("insert res: {:?}", res);
+    //  echarts
+    // run in next microtask tick
+    // App::display_main();
+    // let res = App::insert_slider();
+    // log::debug!("insert res: {:?}", res);
 
     log::info!("after start app");
 }

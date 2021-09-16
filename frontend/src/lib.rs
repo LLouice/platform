@@ -1,8 +1,9 @@
+use wasm_bindgen::prelude::*;
+
 pub mod app;
 mod bindings;
 mod pages;
-
-use wasm_bindgen::prelude::*;
+mod utils;
 
 #[wasm_bindgen]
 pub fn run() {

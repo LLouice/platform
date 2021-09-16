@@ -34,9 +34,13 @@ reqwasm = "0.2.1"
 version = "0.3"
 
 features = [
-  "InputEvent",
+  "DomRect",
+  "Element",
   "HtmlInputElement",
+  "console",
+  "MouseEvent",
   "KeyboardEvent",
+  "InputEvent",
   "EventTarget",
-  "console"
+  "AddEventListenerOptions",
 ]

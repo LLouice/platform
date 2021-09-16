@@ -1,23 +1,31 @@
 // common
-export async function fetchJsonData(url, data) {
+
+async function fetchJsonData(url, data = {}) {
   const base_url = "http://localhost:9090/";
 
   var final_url = base_url + url;
+
   console.log("*** final_url", final_url);
 
-  var reps;
 
-  console.log("***", data);
-  console.log("data !==undefined", data !== undefined);
-  console.log("data !==null", data !== null);
+  console.log("ajax get data:\n", data);
+  var reps = {};
+  try {
 
-  if (data !== undefined && data !== null) {
-    reps = await $.getJSON(final_url, data);
-  } else {
-    reps = await $.getJSON(final_url);
+    reps = await $.ajax({
+      type: "GET",
+      url: final_url,
+      crossDomain: true,
+      // for send cookies
+      xhrFields: {
+        withCredentials: true
+      },
+      data: data,
+    });
+
+  } catch (err) {
+    console.error(err);
   }
-
-  console.log("fetchData: ", reps);
   return reps;
 }
 
@@ -163,7 +171,7 @@ export async function renderNetwork(src_type = "Symptom", name = "肩背痛") {
 
 // stats
 export async function displayStats() {
-  var pieData = await fetchJsonData("get_stats", null);
+  var pieData = await fetchJsonData("get_stats");
   // let data_nodes = pieData.nodes_pie;
   // let data_three = [pieData.sym_pie, pieData.dis_pie, pieData.check_pie];
   let data_rels = pieData.rels_pie;
@@ -365,8 +373,21 @@ function displayRelsStats(data) {
   statChart.setOption(option);
 }
 
-// main
 
+// main for rust
+export async function main() {
+  await displayNetwork();
+  await displayStats();
+}
+
+
+export function main_with_cb(cb) {
+  main().then(cb);
+}
+
+
+// main in js
+/*
 export function main() {
   $(document).ready(checkContainer);
 
@@ -394,3 +415,4 @@ async function _main() {
     }, 200);
   }
 }
+*/
