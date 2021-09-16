@@ -36,5 +36,7 @@ version = "0.3"
 features = [
   "InputEvent",
   "HtmlInputElement",
-  "KeyboardEvent"
+  "KeyboardEvent",
+  "EventTarget",
+  "console"
 ]

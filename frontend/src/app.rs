@@ -1,11 +1,13 @@
 use anyhow::Result;
+use js_sys::Function;
 use reqwasm::http::{Request, Response};
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use wasm_logger;
-use web_sys::HtmlInputElement;
+use web_sys::{Document, HtmlElement, HtmlInputElement};
 use yew::html::Scope;
 use yew::prelude::*;
+use yew::utils::{document, window};
 use yew_router::prelude::*;
 
 use platform::GraphData;
@@ -280,6 +282,7 @@ impl App {
     fn get_input(&self) -> HtmlInputElement {
         self.search_inp.cast::<HtmlInputElement>().unwrap()
     }
+
     fn search(&mut self, name: String) {
         // let resp = spawn_local(async move {
         //     let uri = format!(
@@ -295,6 +298,102 @@ impl App {
         log::debug!("search cat: {}", self.search_cat);
         unsafe {
             spawn_local(bindings::display_network(self.search_cat.to_string(), name));
+        }
+        // insert slider
+        log::info!("insert slider...");
+        Self::insert_slider();
+    }
+
+    fn insert_slider() -> Result<()> {
+        log::info!("insert slider...");
+        let mut doc = document();
+        let mut win = window();
+        let network_svg = doc.query_selector("#network svg").map_err(|e| {
+            log::error!("erorr on query svg");
+            web_sys::console::log_2(&">>>>".into(), &e);
+            anyhow::anyhow!("query error!")
+        }
+        )?;
+        log::debug!("network_svg: {:?}", network_svg);
+        // FIXME: timeout retry
+        if let Some(network_svg) = network_svg {
+            const SVGNS: Option<&str> = Some("http://www.w3.org/2000/svg"); // svg namespace
+            let mut slider: HtmlElement = doc.create_element_ns(SVGNS, "g").unwrap().unchecked_into();
+            let mut line = doc.create_element_ns(SVGNS, "line").unwrap();
+            let width: f64 = win.inner_width().unwrap().as_f64().expect("error on get window inner_width");
+            let height: f64 = win.inner_height().unwrap().as_f64().expect("error on get window inner_width");
+            // line position
+            let x1 = width * 0.75;
+            let y1 = height * 0.75;
+            let line_len = width * 0.1;
+            let x2 = x1 + line_len;
+            let r = 5_f64;
+            let c = x1 + r + line_len / 2.0;
+
+            // set line attributes
+            line.set_attribute_ns(None, "x1", x1.to_string().as_str()).unwrap();
+            line.set_attribute_ns(None, "y1", y1.to_string().as_str()).unwrap();
+            line.set_attribute_ns(None, "x2", x2.to_string().as_str()).unwrap();
+            line.set_attribute_ns(None, "y2", y1.to_string().as_str()).unwrap();
+            line.set_attribute_ns(None, "stroke", "#45c589").unwrap();
+            line.set_attribute_ns(None, "stroke-width", r.to_string().as_str()).unwrap();
+            slider.append_child(&line).expect("error on slider append line child");
+            // dot
+            let mut dot: HtmlElement = doc.create_element_ns(SVGNS, "circle").unwrap().unchecked_into();
+            dot.set_attribute_ns(None, "r", r.to_string().as_str()).unwrap();
+            dot.set_attribute_ns(None, "transform", &format!("translate({} {})", c, y1)).unwrap();
+            dot.set_attribute_ns(None, "id", "dot").unwrap();
+
+            // drag
+            let dot_c = dot.clone();
+            let on_mouse_down: Function = Closure::once_into_js(move || {
+                let dot = dot_c;
+                let e: MouseEvent = window().event().unchecked_into();
+                e.prevent_default();
+
+                // init info
+                let init_x: i32 = e.client_x();
+                let start_ptr_x: i32 = dot.client_left();
+
+
+                let on_mouse_move: Function = Closure::wrap(Box::new(move || {
+                    let e: MouseEvent = window().event().unchecked_into();
+                    let move_distance: i32 = e.client_x();
+                    let mut new_x = (start_ptr_x + move_distance) as f64;
+                    if new_x < x1 {
+                        new_x = x1;
+                    }
+                    let _x2 = x2 - 2. * r;
+                    if new_x > _x2 {
+                        new_x = _x2;
+                    }
+                    // FIXME:  change the e
+                    dot.set_attribute_ns(None, "transform", &format!("translate({} {})", new_x as f64 + r, y1)).expect("error on set dot transform");
+                }) as Box<dyn FnMut()>).into_js_value().into();
+                doc.add_event_listener_with_callback("mousemove", &on_mouse_move).expect("error on add mousemove listener");
+
+                // only call once,otherwise throw a exception, so don't need remove self(can't do it in rust actually)
+                let on_mouse_up: Function = Closure::once_into_js(move || {
+                    doc.remove_event_listener_with_callback("mousemove", &on_mouse_move).expect("error on remove mousereomve listener");
+                }).into();
+
+                let doc = document();
+
+                doc.add_event_listener_with_callback("mouseup", &on_mouse_up).expect("error on add mouseup listener");
+            }).into();
+
+            dot.set_onmousedown(Some(&on_mouse_down));
+            dot.set_ondrag(None);
+
+            slider.append_child(&dot).expect("error on slider append dot child");
+
+
+            let on_dbclick: Function = Closure::wrap(Box::new(move || {}) as Box<dyn FnMut()>).into_js_value().into();
+            slider.set_ondblclick(Some(&on_dbclick));
+            network_svg.append_child(&slider).expect("error on append slider");
+            Ok(())
+        } else {
+            anyhow::bail!("network svg is not exists now");
         }
     }
 }
@@ -333,5 +432,8 @@ pub fn run() {
     // yew::run_loop();
 
     yew::start_app_in_element::<App>(mount_point);
+    let res = App::insert_slider();
+    log::debug!("insert res: {:?}", res);
+
     log::info!("after start app");
 }

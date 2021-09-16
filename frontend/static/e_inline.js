@@ -490,7 +490,7 @@ async function _main() {
 
     // Resize function
     function resizeChart() {
-        setTimeout(function() {
+        setTimeout(function () {
             // Resize chart
             getEchartInstance("network").resize();
             getEchartInstance("stats_rels").resize();
@@ -500,6 +500,118 @@ async function _main() {
 
 main();
 
+// slider
+function insert_slider() {
+    let network_svg = $("#network svg:first")[0];
+    console.log(network_svg);
+    var svgns = "http://www.w3.org/2000/svg"; // svg namespace
+
+    // var shape = document.createElementNS(svgns, "rect");
+    // shape.setAttributeNS(null,"width",50);
+    // shape.setAttributeNS(null,"height",80);
+    // shape.setAttributeNS(null,"fill","#f00");
+    // network_svg.appendChild(shape);
+    // network_svg.appendChild(shape);
+
+    var slider = document.createElementNS(svgns, "g");
+    var line = document.createElementNS(svgns, "line");
+
+    // let w = parseInt(network_svg.getAttribute("width"));
+    // let h = parseInt(network_svg.getAttribute("height"));
+    let w = window.innerWidth;
+    let h = window.innerHeight;
+    let x1 = w * 0.75;
+    let y1 = h * 0.15;
+    let line_len = w * 0.1;
+    let x2 = x1 + line_len;
+    line.setAttributeNS(null, "x1", x1);
+    line.setAttributeNS(null, "y1", y1);
+    line.setAttributeNS(null, "x2", x2);
+    line.setAttributeNS(null, "y2", y1);
+    line.setAttributeNS(null, "stroke", "#45c589");
+    line.setAttributeNS(null, "stroke-width", 5);
+    // line.setAttributeNS(null,"stroke-dasharray","1 28");
+    // '<line x1="4" y1="0" x2="480" y2="0" stroke="#444" stroke-width="12" stroke-dasharray="1 28"></line>'
+    slider.appendChild(line);
+
+    var dot = document.createElementNS(svgns, "circle");
+    let r = 5;
+    let c = x1 + r + line_len / 2;
+    dot.setAttributeNS(null, "r", r);
+    dot.setAttributeNS(null, "transform", "translate(" + c + " " + y1 + ")");
+    dot.setAttributeNS(null, "id", "dot");
+
+
+    $(window).on("resize", function (e) {
+        // let w = parseInt(network_svg.getAttribute("width"));
+        // let h = parseInt(network_svg.getAttribute("height"));
+
+        let w = window.innerWidth;
+        let h = window.innerHeight;
+        console.log(w, h);
+        let x1 = w * 0.75;
+        let y1 = h * 0.15;
+        let line_len = w * 0.1;
+        let x2 = x1 + line_len;
+        let r = 5;
+        let c = x1 + r + line_len / 2;
+        line.setAttributeNS(null, "x1", x1);
+        line.setAttributeNS(null, "y1", y1);
+        line.setAttributeNS(null, "x2", x2);
+        line.setAttributeNS(null, "y2", y1);
+        dot.setAttributeNS(null, "transform", "translate(" + c + " " + y1 + ")");
+        // dot.transform.baseVal[0].matrix.e = c;
+    });
+
+
+    // drag
+    dot.onmousedown = function (event) {
+        event.preventDefault();
+        // let pageX = event.pageX; // all document
+        // let pageY = event.pageY; // visible document
+        // let clientX = event.clientX;
+        // let clientY = event.clientY;
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        window._D = dot.transform;
+
+        let initX = event.clientX;
+        let startX = parseInt(dot.getBoundingClientRect().left);
+        let x1 = parseInt(line.getAttribute("x1"));
+        let x2 = parseInt(line.getAttribute("x2"));
+
+        function onMouseMove(event) {
+            var moveDistance = event.clientX - initX;
+            var newX = startX + moveDistance;
+            if (newX < x1) {
+                newX = x1;
+            }
+            if (newX > (x2 - 10)) {
+                newX = (x2 - 10);
+            }
+            dot.transform.baseVal[0].matrix.e = (newX + 5);
+        }
+
+        function onMouseUp() {
+            document.removeEventListener('mouseup', onMouseUp);
+            document.removeEventListener('mousemove', onMouseMove);
+        }
+    }
+
+    slider.ondblclick = function (_e) {
+        dot.transform.baseVal[0].matrix.e = c;
+    }
+    dot.ondrag = (_) => false;
+
+    slider.appendChild(dot);
+    network_svg.appendChild(slider);
+}
+
+window.insert_slider = insert_slider;
+setTimeout(function () {
+    insert_slider()
+}, 2000);
 
 function getOption(selector = "network") {
     let chartDom = document.getElementById(selector);
@@ -550,3 +662,4 @@ window.getOption = getOption;
 window.getZoom = getZoom;
 window.setZoom = setZoom;
 window._d = _d;
+
