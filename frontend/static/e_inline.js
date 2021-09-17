@@ -622,7 +622,7 @@ function getOption(selector = "network") {
         chart: chart,
         opt: opt
     };
-};
+}
 
 
 function getZoom(selector = "network") {
@@ -631,7 +631,7 @@ function getZoom(selector = "network") {
         opt
     } = getOption(selector);
     return opt.series[0].zoom;
-};
+}
 
 
 function setZoom(zoom = 1, selector = "network") {

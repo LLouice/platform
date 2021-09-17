@@ -1,8 +1,3 @@
-use std::ops::{Fn, FnMut, FnOnce};
-
-use js_sys::Function;
-use wasm_bindgen::closure::{Closure, WasmClosure, WasmClosureFnOnce};
-
 // use std::marker::PhantomData;
 // use js_sys::Reflect::get;
 
@@ -97,14 +92,14 @@ impl<F> Into<Function> for JsFn<F>
 #[macro_export]
 macro_rules! into_js_fn_once {
     ($fn_once: expr)  => {
-        Closure::once_into_js($fn_once).into()
+        wasm_bindgen::closure::Closure::once_into_js($fn_once).into()
     }
 }
 
 #[macro_export]
 macro_rules! into_js_fn_mut {
     ($fn_mut: expr)  => {{
-       let f: Function = Closure::wrap(Box::new($fn_mut) as Box<dyn FnMut()>).into_js_value().into();
+       let f: js_sys::Function = wasm_bindgen::closure::Closure::wrap(Box::new($fn_mut) as Box<dyn FnMut()>).into_js_value().into();
        f
     }}
 }
@@ -112,7 +107,7 @@ macro_rules! into_js_fn_mut {
 #[macro_export]
 macro_rules! into_js_fn {
     ($f: expr) => {{
-         let f: Function = Closure::wrap(Box::new($f) as Box <dyn Fn()>).into_js_value().into();
+         let f: js_sys::Function = wasm_bindgen::closure::Closure::wrap(Box::new($f) as Box <dyn Fn()>).into_js_value().into();
          f
     }}
 }
@@ -151,3 +146,38 @@ macro_rules! js_set {
     }
 }
 
+#[macro_export]
+macro_rules! js_apply {
+
+    ($targ:expr, $method_name:expr) => {{
+        use core::iter::FromIterator;
+
+        js_sys::Reflect::apply(
+            &js_get!(js_sys::Reflect::get_prototype_of(&$targ)?.as_ref(), $method_name)?.into(),
+            // &wasm_bindgen::JsValue::undefined(),
+            &$targ,
+            &js_sys::Array::new()
+        )
+    }};
+
+    ($targ:expr, $method_name:expr, $args:expr) => {{
+        use core::iter::FromIterator;
+
+        js_sys::Reflect::apply(
+            &js_get!(js_sys::Reflect::get_prototype_of(&$targ)?.as_ref(), $method_name)?.into(),
+            // &wasm_bindgen::JsValue::undefined(),
+            &$targ,
+            &js_sys::Array::from_iter($args),
+        )
+    }};
+
+    ($targ:expr, $method_name:expr, $this:expr, $args:expr) => {{
+        use core::iter::FromIterator;
+
+        js_sys::Reflect::apply(
+            &js_get!(js_sys::Reflect::get_prototype_of(&$targ)?.as_ref(), $method_name)?.into(),
+            &$this,
+            &js_sys::Array::from_iter($args),
+        )
+    }}
+}

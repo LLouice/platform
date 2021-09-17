@@ -8,7 +8,7 @@ use yew::prelude::*;
 use yew::utils::{document, window};
 use yew_router::prelude::*;
 
-use crate::{into_js_fn, into_js_fn_mut, js_get, js_set};
+use crate::{into_js_fn, into_js_fn_mut, js_apply, js_get, js_set};
 use crate::bindings;
 use crate::pages::{home::Home, page_not_found::PageNotFound, symptom::PageSymptom};
 
@@ -320,24 +320,51 @@ impl App {
     fn _insert_slider() -> std::result::Result<(), JsValue> {
         log::info!("insert slider...");
         let doc = document();
-        let win = window();
         let network_svg = doc.query_selector("#network svg")?;
         log::debug!("network_svg: {:?}", network_svg);
-        // FIXME: timeout retry
         if let Some(network_svg) = network_svg {
             log::debug!("network_svg exists");
+            // svg postion
+            let svg_rec = network_svg.unchecked_ref::<Element>().get_bounding_client_rect();
+            // from left client
+            let svg_left: f64 = svg_rec.left();
+            let svg_width: f64 = svg_rec.width();
+            let svg_height: f64 = svg_rec.height();
+            let svg_top: f64 = svg_rec.top();
+            let svg_right: f64 = svg_rec.right();
+
+            log::info!("[svg] left: {:?}, widht: {:?}, height: {:?}, top: {:?}, right: {:?}",
+                svg_left,
+                svg_width,
+                svg_height,
+                svg_top,
+                svg_right,
+            );
+
             const SVGNS: Option<&str> = Some("http://www.w3.org/2000/svg"); // svg namespace
             let slider: HtmlElement = doc.create_element_ns(SVGNS, "g")?.unchecked_into();
             let line = doc.create_element_ns(SVGNS, "line")?;
-            let width: f64 = win.inner_width()?.as_f64().ok_or_else(|| "error on get window innerWidth")?;
-            let height: f64 = win.inner_height()?.as_f64().ok_or_else(|| "error on get window innerHeight")?;
             // line position
-            let x1 = width * 0.75;
-            let y1 = height * 0.75;
-            let line_len = width * 0.1;
+            // the ratio margin right of svg
+            let mr_ratio = 0.05;
+            // the ratio or line len
+            let len_ratio = 0.1;
+            // the ratio from the top of svg
+            let mt_ratio = 0.15;
+
+            let x1 = svg_width * (1. - mr_ratio - len_ratio);
+            let y1 = svg_height * mt_ratio;
+            let line_len = svg_width * len_ratio;
+            let line_half = line_len / 2.;
             let x2 = x1 + line_len;
             let r = 5_f64;
-            let c = x1 + line_len / 2.0;
+            let c = x1 + line_half;
+            let line_half_r = line_half - r;
+
+            let get_ratio = move |pos: f64| {
+                let x = 1. + (pos - c) / line_half_r;
+                if x > 0. { x } else { 0. }
+            };
 
             log::info!("x1: {:?}, x2: {:?}, c: {:?}", x1, x2, c);
 
@@ -368,20 +395,14 @@ impl App {
                 let e: MouseEvent = window().event().unchecked_into();
                 e.prevent_default();
                 let doc = document();
-                let line: HtmlElement = doc.query_selector("#sliderLine").unwrap().unwrap().unchecked_into();
                 let dot: HtmlElement = doc.query_selector("#dot").unwrap().unwrap().unchecked_into();
 
                 // init info
-                let line_left = line.unchecked_into::<Element>().get_bounding_client_rect().x();
-                // svg margin left: for give transform value in svg
-                let svg_ml: f64 = line_left - x1;
-                log::debug!("line left: {}", line_left);
-                log::debug!("svg_ml: {}", svg_ml);
-
                 // for calc move distance
                 let start_ptr_x: i32 = e.client_x();
                 // the dot center init x
-                let init_x: f64 = dot.unchecked_ref::<Element>().get_bounding_client_rect().x() - svg_ml + r;
+                // absolute position
+                let init_x: f64 = dot.unchecked_ref::<Element>().get_bounding_client_rect().x() - svg_left + r;
 
                 log::debug!("x: {:?}, start_ptr_x: {:?}, init_x: {:?}, screen_x: {:?}, offset_x: {:?}, client_left: {:?}, offset_left: {:?}",
                 e.x(),
@@ -404,7 +425,7 @@ impl App {
                     if new_x < _x1 {
                         new_x = _x1;
                     }
-                    let _x2 = x2 - 2. * r;
+                    let _x2 = x2 - r;
                     if new_x > _x2 {
                         new_x = _x2;
                     }
@@ -413,19 +434,29 @@ impl App {
                     let dot_attr_e = js_get!(&dot, "transform", "baseVal", "0", "matrix", "e");
                     log::info!("dot_attr_e: {:?}", dot_attr_e);
 
+                    let ratio = get_ratio(new_x);
+                    let pre_ratio = js_get!(&dot, "ratio");
+                    let pre_ratio: f64 = match pre_ratio {
+                        Ok(x) => {x.as_f64().unwrap_or(1.0)}
+                        Err(_) => {1.0}
+                    };
+                    let _ = Self::change_symbol_size(pre_ratio, ratio).map_err(|e| log::error!("{:?}", e));
+                    // save current ratio in dot for getting the origin symbolSize
+                    let _ = js_set!(&dot, "ratio", ratio);
+
+                    log::debug!("current ratio: {:?}", ratio);
                 }) as Box<dyn FnMut()>).into_js_value().into();
 
                 doc.add_event_listener_with_callback("mousemove", &on_mouse_move).expect("error on add mousemove listener");
 
                 // generate on fly
-                // only call once,otherwise throw a exception, so don't need remove self(can't do it in rust actually)
                 let on_mouse_move_c  = on_mouse_move.clone();
                 // run many time, it remove listener
                 let on_mouse_up: Function = Closure::once_into_js(move || {
                     document().remove_event_listener_with_callback("mousemove", &on_mouse_move_c).expect("error on remove mousemove listener");
                 }).into();
 
-                // here on_mouse_up will free after on_mouse_up is called
+                // should use AddEventListenerOptions.once to free mouseup on fly
                 doc.add_event_listener_with_callback_and_add_event_listener_options("mouseup", &on_mouse_up,
                    web_sys::AddEventListenerOptions::new().once(true)
                 ).expect("error on add mouseup listener");
@@ -441,7 +472,14 @@ impl App {
                 let _e: MouseEvent = window().event().unchecked_into();
                 let dot = document().query_selector("#dot").unwrap().unwrap();
                 let _ = js_set!(&dot, "transform", "baseVal", "0", "matrix" => "e", c).map_err(|e| log::error!("{:?}", e));
-                // dot.set_attribute_ns(None, "transform", &format!("translate({} {})", c, y1)).unwrap();
+                // reset ratio and symbolSize
+                let pre_ratio = js_get!(&dot, "ratio");
+                let pre_ratio: f64 = match pre_ratio {
+                    Ok(x) => {x.as_f64().unwrap_or(1.0)}
+                    Err(_) => {1.0}
+                };
+                let _ = Self::change_symbol_size(pre_ratio, 1.0).map_err(|e| log::error!("{:?}", e));
+                let _ = js_set!(&dot, "ratio", 1.0);
             });
             slider.set_ondblclick(Some(&on_dbclick));
             network_svg.append_child(&slider)?;
@@ -452,6 +490,38 @@ impl App {
         } else {
             Err(JsValue::from_str("network svg is not exists now"))
         }
+    }
+
+    // call by update?
+    fn change_symbol_size(pre_ratio: f64, ratio: f64) -> std::result::Result<(), JsValue> {
+        let chart_opt = dbg!(bindings::get_echarts_option(None));
+        log::debug!("chart_opt: {:?}", chart_opt);
+        let chart = dbg!(js_get!(&chart_opt, "chart"))?;
+        let opt = js_get!(&chart_opt, "opt")?;
+        let opt_data = dbg!(js_get!(&opt, "series", "0", "data"))?;
+        log::debug!("char: {:?}", chart);
+        log::debug!("opt: {:?}", opt_data);
+
+        // iterate data to change it's SymbolSize
+        let it = js_sys::try_iter(&opt_data)?.ok_or_else(|| {
+            "need to pass iterable JS values!"
+        })?;
+
+        for x in it {
+            // If the iterator's `next` method throws an error, propagate it
+            // up to the caller.
+            let x = x?;
+
+            // If `x` is a number, add it to our array of numbers!
+            let symbol_size = js_get!(&x, "symbolSize")?.as_f64().ok_or("no symbolSize in Option data")?;
+            log::debug!("ratio: {}, new symbolSize {:?}", ratio, symbol_size * ratio);
+            let _ = js_set!(&x, "symbolSize", symbol_size / pre_ratio * ratio);
+            log::debug!("{:?}", js_get!(&x, "symbolSize"));
+        }
+        // reset option to trigger echarts update
+        js_apply!(&chart, "setOption", [&opt])?;
+
+        Ok(())
     }
 }
 
@@ -494,6 +564,9 @@ pub fn run() {
     // App::display_main();
     // let res = App::insert_slider();
     // log::debug!("insert res: {:?}", res);
+
+    // ---- debug ----
+
 
     log::info!("after start app");
 }

@@ -374,6 +374,22 @@ function displayRelsStats(data) {
 }
 
 
+export function getOption(selector = "network") {
+  let chartDom = document.getElementById(selector);
+  var chart = echarts.getInstanceByDom(chartDom);
+  console.log("chart: ", chart);
+  var opt = chart.getOption();
+  return {
+    chart: chart,
+    opt: opt
+  };
+}
+
+// export function setOption(chart, opt) {
+//   chart.setOption(opt);
+// }
+
+
 // main for rust
 export async function main() {
   await displayNetwork();

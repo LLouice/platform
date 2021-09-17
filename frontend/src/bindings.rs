@@ -9,6 +9,12 @@ extern "C" {
     #[wasm_bindgen(js_name = "displayNetwork")]
     pub async fn display_network(src_type: String, name: String);
 
+    #[wasm_bindgen(js_name = "getOption")]
+    pub fn get_echarts_option(selctor: Option<String>) -> JsValue;
+
+    // #[wasm_bindgen(js_name = "setOption")]
+    // pub fn set_echarts_option(chart: &JsValue, opt: &JsValue);
+
     #[wasm_bindgen(js_name = "main")]
     pub async fn main();
 
