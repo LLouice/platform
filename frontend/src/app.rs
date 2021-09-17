@@ -317,7 +317,6 @@ impl App {
         });
     }
 
-    // FIXME: use ? instead of unwrap, expect
     fn _insert_slider() -> std::result::Result<(), JsValue> {
         log::info!("insert slider...");
         let doc = document();
@@ -328,10 +327,10 @@ impl App {
         if let Some(network_svg) = network_svg {
             log::debug!("network_svg exists");
             const SVGNS: Option<&str> = Some("http://www.w3.org/2000/svg"); // svg namespace
-            let slider: HtmlElement = doc.create_element_ns(SVGNS, "g").unwrap().unchecked_into();
-            let line = doc.create_element_ns(SVGNS, "line").unwrap();
-            let width: f64 = win.inner_width().unwrap().as_f64().expect("error on get window inner_width");
-            let height: f64 = win.inner_height().unwrap().as_f64().expect("error on get window inner_width");
+            let slider: HtmlElement = doc.create_element_ns(SVGNS, "g")?.unchecked_into();
+            let line = doc.create_element_ns(SVGNS, "line")?;
+            let width: f64 = win.inner_width()?.as_f64().ok_or_else(|| "error on get window innerWidth")?;
+            let height: f64 = win.inner_height()?.as_f64().ok_or_else(|| "error on get window innerHeight")?;
             // line position
             let x1 = width * 0.75;
             let y1 = height * 0.75;
@@ -343,19 +342,19 @@ impl App {
             log::info!("x1: {:?}, x2: {:?}, c: {:?}", x1, x2, c);
 
             // set line attributes
-            line.set_attribute_ns(None, "x1", x1.to_string().as_str()).unwrap();
-            line.set_attribute_ns(None, "y1", y1.to_string().as_str()).unwrap();
-            line.set_attribute_ns(None, "x2", x2.to_string().as_str()).unwrap();
-            line.set_attribute_ns(None, "y2", y1.to_string().as_str()).unwrap();
-            line.set_attribute_ns(None, "stroke", "#45c589").unwrap();
-            line.set_attribute_ns(None, "stroke-width", r.to_string().as_str()).unwrap();
-            line.set_attribute_ns(None, "id", "sliderLine").unwrap();
-            slider.append_child(&line).expect("error on slider append line child");
+            line.set_attribute_ns(None, "x1", x1.to_string().as_str())?;
+            line.set_attribute_ns(None, "y1", y1.to_string().as_str())?;
+            line.set_attribute_ns(None, "x2", x2.to_string().as_str())?;
+            line.set_attribute_ns(None, "y2", y1.to_string().as_str())?;
+            line.set_attribute_ns(None, "stroke", "#45c589")?;
+            line.set_attribute_ns(None, "stroke-width", r.to_string().as_str())?;
+            line.set_attribute_ns(None, "id", "sliderLine")?;
+            slider.append_child(&line)?;
             // dot
-            let dot: HtmlElement = doc.create_element_ns(SVGNS, "circle").unwrap().unchecked_into();
-            dot.set_attribute_ns(None, "r", r.to_string().as_str()).unwrap();
-            dot.set_attribute_ns(None, "transform", &format!("translate({} {})", c, y1)).unwrap();
-            dot.set_attribute_ns(None, "id", "dot").unwrap();
+            let dot: HtmlElement = doc.create_element_ns(SVGNS, "circle")?.unchecked_into();
+            dot.set_attribute_ns(None, "r", r.to_string().as_str())?;
+            dot.set_attribute_ns(None, "transform", &format!("translate({} {})", c, y1))?;
+            dot.set_attribute_ns(None, "id", "dot")?;
 
             log::debug!("set dot attribute done!");
 
@@ -435,7 +434,7 @@ impl App {
             dot.set_onmousedown(Some(&on_mousedown));
             dot.set_ondrag(None);
 
-            slider.append_child(&dot).expect("error on slider append dot child");
+            slider.append_child(&dot)?;
 
             let on_dbclick: Function = into_js_fn!(move ||{
                 log::info!("on dblclick");
@@ -445,7 +444,7 @@ impl App {
                 // dot.set_attribute_ns(None, "transform", &format!("translate({} {})", c, y1)).unwrap();
             });
             slider.set_ondblclick(Some(&on_dbclick));
-            network_svg.append_child(&slider).expect("error on append slider");
+            network_svg.append_child(&slider)?;
 
             log::debug!("insert slider done!");
 
