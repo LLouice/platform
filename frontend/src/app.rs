@@ -1,4 +1,6 @@
+use anyhow::{anyhow, bail, Result};
 use js_sys::Function;
+use reqwasm::http::Request;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use wasm_logger;
@@ -8,6 +10,8 @@ use yew::prelude::*;
 use yew::utils::{document, window};
 use yew_router::prelude::*;
 
+use platform::data::{NodeLabel, QRandomSample};
+
 use crate::{into_js_fn, into_js_fn_mut, js_apply, js_get, js_set};
 use crate::bindings;
 use crate::pages::{home::Home, page_not_found::PageNotFound, symptom::PageSymptom};
@@ -15,38 +19,11 @@ use crate::pages::{home::Home, page_not_found::PageNotFound, symptom::PageSympto
 #[derive(Debug, Default)]
 pub(crate) struct App {
     search_inp: NodeRef,
-    search_cat: Category,
+    search_cat: NodeLabel,
     search_placeholder: String,
     navbar_active: bool,
 }
 
-#[derive(Debug, Clone)]
-pub enum Category {
-    Symptom,
-    Disease,
-    Drug,
-    Department,
-    Check,
-}
-
-impl std::fmt::Display for Category {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let cat = match self {
-            Category::Symptom => "Symptom",
-            Category::Disease => "Disease",
-            Category::Drug => "Drug",
-            Category::Department => "Department",
-            Category::Check => "Check",
-        };
-        write!(f, "{}", cat)
-    }
-}
-
-impl Default for Category {
-    fn default() -> Self {
-        Category::Symptom
-    }
-}
 
 #[derive(Routable, PartialEq, Clone, Debug)]
 pub enum Route {
@@ -67,8 +44,9 @@ pub(crate) enum AppMsg {
     // toggle
     ToggleNavbar,
     Search(String),
-    ChangeSearchCat(Category),
+    ChangeSearchCat(NodeLabel),
     FillPlaceholder,
+    RefreshSample,
 }
 
 impl Component for App {
@@ -77,7 +55,7 @@ impl Component for App {
 
     fn create(_ctx: &Context<Self>) -> Self {
         Self {
-            search_cat: Category::Symptom,
+            search_cat: NodeLabel::Symptom,
             search_placeholder: String::from("肩背痛"),
             navbar_active: false,
             ..Default::default()
@@ -105,11 +83,12 @@ impl Component for App {
                 inp.set_value("");
                 // change search_placeholder
                 let ph = match cat {
-                    Category::Symptom => { "肩背痛" }
-                    Category::Disease => { "皮肤炎症" }
-                    Category::Drug => { "undefined" }
-                    Category::Department => { "undefined" }
-                    Category::Check => { "undefined" }
+                    NodeLabel::Symptom => { "肩背痛" }
+                    NodeLabel::Disease => { "皮肤炎症" }
+                    NodeLabel::Drug => { "undefined" }
+                    NodeLabel::Department => { "undefined" }
+                    NodeLabel::Check => { "undefined" }
+                    _ => { "undefined" }
                 };
                 self.search_placeholder = ph.to_string();
 
@@ -124,6 +103,10 @@ impl Component for App {
                 } else {
                     false
                 }
+            }
+            RefreshSample => {
+                App::display_symptom_word_cloud();
+                true
             }
             _ => false,
         }
@@ -174,6 +157,11 @@ impl App {
         }
         );
 
+        let refresh_sample = link.callback(|_| {
+            AppMsg::RefreshSample
+        }
+        );
+
 
         html! {
             <section class="navbar">
@@ -202,8 +190,10 @@ impl App {
                                 // { "Home" }
                                 // </a>
 
-                            <Link<Route> classes={classes!("navbar-item")} route={Route::Symptom}>
-                                { "症状" }
+                            <Link<Route> classes={classes!("navbar-item")} route={Route::Symptom} >
+                                <span class="is-danger" ondblclick={refresh_sample}>
+                                    { "症状" }
+                                </span>
                             </Link<Route>>
 
                         </div>
@@ -239,21 +229,21 @@ impl App {
                 </a>
 
                 <div class="navbar-dropdown">
-                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Symptom))} >
+                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(NodeLabel::Symptom))} >
                         { "Symptom" }
                     </a>
 
-                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Disease))} >
+                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(NodeLabel::Disease))} >
                         { "Disease" }
                     </a>
-                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Drug))} >
+                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(NodeLabel::Drug))} >
                         { "Drug" }
                     </a>
                     // <hr class="navbar-divider" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Department))} >
                     <a class="navbar-item">
                         { "Department" }
                     </a>
-                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Check))} >
+                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(NodeLabel::Check))} >
                         { "Check" }
                     </a>
                 </div>
@@ -304,6 +294,52 @@ impl App {
 
 // function
 impl App {
+    pub async fn get_word_cloud_data(query: QRandomSample) -> Result<String> {
+        let QRandomSample { label, limit } = query;
+        let limit = limit.unwrap_or(10);
+        let uri = format!(
+            "http://localhost:9090/random_sample?label={}&limit={}",
+            label,
+            limit
+        );
+
+        let resp = Request::get(&uri).send().await.unwrap();
+        // log::info!("{:?}", resp);
+        let text = resp.text().await?;
+
+        log::debug!("api return text: {}", text);
+
+        if resp.ok() {
+            Ok(text)
+        } else {
+            bail!(text)
+        }
+    }
+
+    pub fn display_symptom_word_cloud() {
+        // get data from server
+        spawn_local(
+            async {
+                // TODO: use user interactive data
+                let query = QRandomSample { label: NodeLabel::Symptom, limit: Some(10) };
+                let data = Self::get_word_cloud_data(query).await.map_err(|e| {
+                    log::error!("{}", e);
+                    e
+                });
+
+                let data = if let Ok(data) = data {
+                    js_sys::JSON::parse(data.as_str())
+                        .map(|ref x| js_sys::Array::from(x))
+                        .ok()
+                } else {
+                    None
+                };
+                bindings::display_symptom_word_cloud(dbg!(data));
+            }
+        );
+    }
+
+
     pub fn display_main() {
         spawn_local(async {
             bindings::main().await;
@@ -324,7 +360,7 @@ impl App {
         log::debug!("network_svg: {:?}", network_svg);
         if let Some(network_svg) = network_svg {
             log::debug!("network_svg exists");
-            // svg postion
+            // svg position
             let svg_rec = network_svg.unchecked_ref::<Element>().get_bounding_client_rect();
             // from left client
             let svg_left: f64 = svg_rec.left();
@@ -333,7 +369,7 @@ impl App {
             let svg_top: f64 = svg_rec.top();
             let svg_right: f64 = svg_rec.right();
 
-            log::info!("[svg] left: {:?}, widht: {:?}, height: {:?}, top: {:?}, right: {:?}",
+            log::info!("[svg] left: {:?}, width: {:?}, height: {:?}, top: {:?}, right: {:?}",
                 svg_left,
                 svg_width,
                 svg_height,
@@ -467,7 +503,7 @@ impl App {
 
             slider.append_child(&dot)?;
 
-            let on_dbclick: Function = into_js_fn!(move ||{
+            let dblclick: Function = into_js_fn!(move ||{
                 log::info!("on dblclick");
                 let _e: MouseEvent = window().event().unchecked_into();
                 let dot = document().query_selector("#dot").unwrap().unwrap();
@@ -481,7 +517,7 @@ impl App {
                 let _ = Self::change_symbol_size(pre_ratio, 1.0).map_err(|e| log::error!("{:?}", e));
                 let _ = js_set!(&dot, "ratio", 1.0);
             });
-            slider.set_ondblclick(Some(&on_dbclick));
+            slider.set_ondblclick(Some(&dblclick));
             network_svg.append_child(&slider)?;
 
             log::debug!("insert slider done!");

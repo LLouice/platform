@@ -52,7 +52,6 @@ impl Home {
                  </div>
         };
         App::display_main();
-
         node
     }
 

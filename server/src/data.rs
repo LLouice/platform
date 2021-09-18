@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct Node {
     pub id: usize,
     pub name: String,
-    #[serde(alias = "describle")]
+    #[serde(alias = "describe")]
     pub des: String,
     #[serde(alias = "symbolSize", rename = "symbolSize")]
     pub symbol_size: usize,
@@ -122,4 +122,44 @@ pub struct GraphDataD3 {
     pub data: Nodes,
     pub links: LinksD3,
     pub categories: Categories,
+}
+
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum NodeLabel {
+    Symptom,
+    Disease,
+    Drug,
+    Department,
+    Check,
+    Area,
+}
+
+impl Default for NodeLabel {
+    fn default() -> Self {
+        NodeLabel::Symptom
+    }
+}
+
+impl std::fmt::Display for NodeLabel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let cat = match self {
+            NodeLabel::Symptom => "Symptom",
+            NodeLabel::Disease => "Disease",
+            NodeLabel::Drug => "Drug",
+            NodeLabel::Department => "Department",
+            NodeLabel::Check => "Check",
+            NodeLabel::Area => "Area",
+            _ => "Unknown",
+        };
+        write!(f, "{}", cat)
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct QRandomSample {
+    pub label: NodeLabel,
+    pub limit: Option<usize>,
 }

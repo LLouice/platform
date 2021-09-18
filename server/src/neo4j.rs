@@ -1,5 +1,6 @@
 use neo4rs::*;
 
+// TODO: no unwrap
 pub async fn init_graph() -> Graph {
     // let host = "10.108.211.136";
     let host = "127.0.0.1";

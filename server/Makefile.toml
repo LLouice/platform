@@ -16,3 +16,10 @@ args = ['-run', 'cargo', 'check']
 extend = "sc"
 command = "mold"
 args = ['-run', 'cargo', 'watch']
+
+
+[tasks.t]
+extend = "sc"
+command = "mold"
+args = ['-run', 'cargo', 'test', '--lib', '--', 'nocapture']
+#args = ['-run', 'cargo', 'test', '--', 'nocapture']

@@ -25,9 +25,8 @@ use futures_util::stream::StreamExt as _;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use platform::kg::{self, IncreaseUpdateState, Kg, NodeInfo};
+use platform::kg::{self, IncreaseUpdateState, Kg, NodeInfo, QRandomSample};
 use platform::session::GraphSession;
-
 
 const GRAPHSESSION: &'static str = "GraphSession";
 
@@ -242,6 +241,21 @@ async fn get_stats() -> HttpResponse {
     HttpResponse::Ok().json(res)
 }
 
+
+#[get("/random_sample")]
+async fn random_sample(
+    web::Query(query): web::Query<QRandomSample>) -> Result<HttpResponse, Error> {
+    // get query info
+    let res = Kg::random_sample(query).await
+        .map(|x| HttpResponse::Ok().json(x))
+        .map_err(|e| {
+            // InternalError::from_response("error", HttpResponse::InternalServerError().finish())
+            ErrorInternalServerError(e)
+        })?;
+    Ok(res)
+    // Ok(HttpResponse::Ok().json(query))
+}
+
 #[get("/demo")]
 async fn demo() -> Result<fs::NamedFile> {
     eprintln!("RUST_LOG : {:?}", std::env::var("RUST_LOG"));
@@ -371,6 +385,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_out_links_d3)
             .service(increase_update)
             .service(get_stats)
+            .service(random_sample)
             // for debug
             .service(_get_out_links)
             .service(get_in_links)
@@ -404,7 +419,7 @@ mod tests {
 
         assert_eq!(resp.status(), http::StatusCode::OK);
 
-        let response_body = match resp.response().body().as_ref() {
+        let response_body = match resp.response().body() {
             Some(actix_web::body::Body::Bytes(bytes)) => bytes,
             _ => panic!("Response error"),
         };

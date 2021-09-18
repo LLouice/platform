@@ -3,10 +3,10 @@
 use chrono::NaiveDateTime;
 // use futures::stream::{FuturesUnordered, StreamExt};
 use neo4rs::*;
+use tokio;
+
 use platform::kg::Kg;
 use platform::neo4j::init_graph;
-
-use tokio;
 
 #[tokio::main]
 async fn main() {
@@ -25,7 +25,7 @@ async fn node_num() {
         // let labels = node.labels();
         // let name: String = node.get("name").unwrap();
         // let updated_time: NaiveDateTime = node.get("updated_time").unwrap();
-        // res.push(KgResult::new(name, labels, updated_time));
+        // res.push(LinksResult::new(name, labels, updated_time));
         println!("{:#?}", row);
         println!("{:?}", row.get::<i64>("num"));
     }

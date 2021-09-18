@@ -1,24 +1,25 @@
+use std::collections::{HashMap, HashSet};
+
+use anyhow::{anyhow, bail, Result};
 use chrono::NaiveDateTime;
 use neo4rs::*;
 use serde::{Deserialize, Serialize};
 
-use std::collections::{HashMap, HashSet};
-
-use crate::data::{Category, GraphData, GraphDataD3, Link, LinkD3, Node as DNode};
+use crate::data::{Category, GraphData, GraphDataD3, Link, LinkD3, Node as DNode, NodeLabel, QRandomSample};
 use crate::neo4j::init_graph;
 use crate::session::GraphSession;
 
 #[derive(Debug, Serialize)]
-pub struct KgResult {
+pub struct LinksResult {
     name: String,
     label: Vec<String>,
     #[serde(skip)]
     updated_time: NaiveDateTime,
 }
 
-impl KgResult {
+impl LinksResult {
     fn new(name: String, label: Vec<String>, updated_time: NaiveDateTime) -> Self {
-        KgResult {
+        LinksResult {
             name,
             label,
             updated_time,
@@ -29,7 +30,8 @@ impl KgResult {
 pub struct Kg;
 
 impl Kg {
-    pub async fn get_out_links(src_type: &str, name: &str) -> Vec<KgResult> {
+    // FIXME: eliminate the unwrap and expect
+    pub async fn get_out_links(src_type: &str, name: &str) -> Vec<LinksResult> {
         let graph = init_graph().await;
         let cypher = format!(
             "match (ps:{}{{name:$name}}) -[r]-> (pt) return ps,r,pt",
@@ -46,12 +48,12 @@ impl Kg {
             let labels = node.labels();
             let name: String = node.get("name").unwrap();
             let updated_time: NaiveDateTime = node.get("updated_time").unwrap();
-            res.push(KgResult::new(name, labels, updated_time));
+            res.push(LinksResult::new(name, labels, updated_time));
         }
         res
     }
 
-    pub async fn get_in_links(target_type: &str, name: &str) -> Vec<KgResult> {
+    pub async fn get_in_links(target_type: &str, name: &str) -> Vec<LinksResult> {
         let graph = init_graph().await;
         let cypher = format!(
             "match (ps) -[r]-> (pt:{}{{name:$name}})  return ps,r,pt",
@@ -68,13 +70,13 @@ impl Kg {
             let labels = node.labels();
             let name: String = node.get("name").unwrap();
             let updated_time: NaiveDateTime = node.get("updated_time").unwrap();
-            res.push(KgResult::new(name, labels, updated_time));
+            res.push(LinksResult::new(name, labels, updated_time));
         }
         res
     }
 
     #[deprecated(note = "Use `convert_dedup` instead.")]
-    pub fn convert(src_type: &str, name: &str, kg_res: Vec<KgResult>) -> anyhow::Result<GraphData> {
+    pub fn convert(src_type: &str, name: &str, kg_res: Vec<LinksResult>) -> anyhow::Result<GraphData> {
         let mut nodes = vec![];
         let mut links = vec![];
         let mut categories = vec![];
@@ -130,7 +132,7 @@ impl Kg {
     pub fn convert_dedup(
         src_type: &str,
         name: &str,
-        kg_res: Vec<KgResult>,
+        kg_res: Vec<LinksResult>,
     ) -> anyhow::Result<(GraphData, GraphSession)> {
         let mut node_keys = HashMap::new();
 
@@ -207,7 +209,7 @@ impl Kg {
         node_info: &NodeInfo,
         current_nodes_id: HashSet<usize>,
         current_links_set: HashSet<(usize, usize)>,
-        kg_res: Vec<KgResult>,
+        kg_res: Vec<LinksResult>,
         sess: GraphSession,
     ) -> anyhow::Result<(GraphData, GraphSession)> {
         let NodeInfo { src_type, name } = node_info;
@@ -324,7 +326,7 @@ impl Kg {
     pub fn convert_d3_dedup(
         src_type: &str,
         name: &str,
-        kg_res: Vec<KgResult>,
+        kg_res: Vec<LinksResult>,
     ) -> anyhow::Result<GraphDataD3> {
         let mut node_keys = HashSet::new();
 
@@ -388,14 +390,55 @@ impl Kg {
         })
     }
 
-    pub async fn query_node_links(NodeInfo { src_type, name }: &NodeInfo) -> Vec<KgResult> {
+    pub async fn query_node_links(NodeInfo { src_type, name }: &NodeInfo) -> Vec<LinksResult> {
         if src_type == "Symptom" {
             Self::get_out_links(src_type.as_str(), name.as_str()).await
         } else {
             Self::get_in_links(src_type.as_str(), name.as_str()).await
         }
     }
+
+    pub async fn random_sample(QRandomSample { label, limit }: QRandomSample) -> Result<Vec<RandomSampleResult>> {
+        let limit = limit.unwrap_or(10);
+
+        let graph = init_graph().await;
+        let cypher = format!(
+            "MATCH(node:{}) -[r]-> (t) WHERE rand() < 0.1 RETURN node, COUNT(DISTINCT t) as num LIMIT {}",
+            label,
+            limit
+        );
+        log::debug!("random_sample: {:?}", cypher);
+        let mut result = graph
+            .execute(query(cypher.as_str()))
+            .await.map_err(|_| anyhow!("error on execute cypher"))?;
+
+        // get query result
+        let mut res = vec![];
+        while let Ok(Some(row)) = result.next().await {
+            log::debug!("row is: {:#?}\n\n", row);
+
+            let node: Node = row.get("node").ok_or_else(|| anyhow!("no key `node` in row"))?;
+            let name: String = node.get("name").ok_or_else(|| anyhow!("no key `name` in node"))?;
+            let num = row.get::<i64>("num").ok_or_else(|| anyhow!("no key `num` in row"))?;
+            // redundant info for future usage
+            let updated_time: NaiveDateTime = node.get("updated_time").ok_or_else(|| anyhow!("no key `updated_time` in node"))?;
+
+            res.push(RandomSampleResult { name, num, updated_time });
+        }
+        Ok(res)
+    }
 }
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RandomSampleResult {
+    name: String,
+    #[serde(rename = "value")]
+    num: i64,
+    #[serde(skip)]
+    updated_time: NaiveDateTime,
+}
+
 
 #[derive(Default, Debug)]
 pub struct Stats {
@@ -567,6 +610,9 @@ pub struct PieData {
     check_pie: Pies,
 }
 
+///////////////////////////
+// api query / payload info
+///////////////////////////
 #[derive(Deserialize, Debug)]
 pub struct NodeInfo {
     // FIXME rename it to type
@@ -579,4 +625,30 @@ pub struct IncreaseUpdateState {
     pub node_info: NodeInfo,
     pub current_nodes_id: Vec<usize>,
     pub current_links_pair: Vec<(usize, usize)>,
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+// use crate::utils;
+
+    #[test]
+    fn random_sample() {
+        crate::init_env_logger!();
+        let rt = tokio::runtime::Runtime::new().expect("get tokio Runtime fail!");
+
+
+        rt.block_on(
+            async {
+                let query = QRandomSample::default();
+                let res = Kg::random_sample(query).await;
+                // debug_assert!(res.is_ok());
+                // eprintln!("{:?}", res.unwrap());
+                eprintln!("{:?}", res);
+            }
+        );
+        log::debug!("end of test");
+    }
 }

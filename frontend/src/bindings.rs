@@ -9,8 +9,11 @@ extern "C" {
     #[wasm_bindgen(js_name = "displayNetwork")]
     pub async fn display_network(src_type: String, name: String);
 
+    #[wasm_bindgen(js_name = "displaySymptomWordCloud")]
+    pub fn display_symptom_word_cloud(data: Option<js_sys::Array>);
+
     #[wasm_bindgen(js_name = "getOption")]
-    pub fn get_echarts_option(selctor: Option<String>) -> JsValue;
+    pub fn get_echarts_option(selector: Option<String>) -> JsValue;
 
     // #[wasm_bindgen(js_name = "setOption")]
     // pub fn set_echarts_option(chart: &JsValue, opt: &JsValue);

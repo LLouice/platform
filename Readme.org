@@ -28,6 +28,8 @@
       - [[#esbuild][esbuild]]
     - [[#todo][todo]]
       - [[#界面构建][界面构建]]
+    - [[#echarts][Echarts]]
+      - [[#word-cloud][word cloud]]
 - [[#about-data][About Data]]
   - [[#type][Type]]
     - [[#rdf-schemasubclassof]["rdf-schema#subClassOf",]]
@@ -643,6 +645,11 @@
 **** 界面构建
      - [x] navbar
      - [ ] mobile responsive
+
+*** Echarts
+**** word cloud
+     [[https://github.com/ecomfe/echarts-wordcloud/]]
+
 * About Data
 ** Type
 *** "rdf-schema#subClassOf",
@@ -926,3 +933,5 @@
 - [ ] Echarts 文档通读
 - [ ] split the demo.html
 - [ ] modulize the demo.html
+- [ ] 词云
+- [ ] 整理代码片段
