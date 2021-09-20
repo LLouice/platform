@@ -14,7 +14,7 @@ use platform::data::{NodeLabel, QRandomSample};
 
 use crate::{into_js_fn, into_js_fn_mut, js_apply, js_get, js_set};
 use crate::bindings;
-use crate::pages::{home::Home, page_not_found::PageNotFound, symptom::PageSymptom};
+use crate::pages::{category::PageCategory, home::Home, page_not_found::PageNotFound};
 
 #[derive(Debug, Default)]
 pub(crate) struct App {
@@ -22,6 +22,7 @@ pub(crate) struct App {
     search_cat: NodeLabel,
     search_placeholder: String,
     navbar_active: bool,
+    route_cat: NodeLabel,
 }
 
 
@@ -29,8 +30,8 @@ pub(crate) struct App {
 pub enum Route {
     // #[at("/posts/:id")]
     // Post { id: u64 },
-    #[at("/symptom")]
-    Symptom,
+    #[at("/category/:query")]
+    Category { query: QRandomSample },
     #[at("/")]
     Home,
     #[not_found]
@@ -46,6 +47,7 @@ pub(crate) enum AppMsg {
     Search(String),
     ChangeSearchCat(NodeLabel),
     FillPlaceholder,
+    ChangeRouteCat(NodeLabel),
     RefreshSample,
 }
 
@@ -104,8 +106,17 @@ impl Component for App {
                     false
                 }
             }
+            ChangeRouteCat(cat) => {
+                log::info!("ChangeRouteCat");
+                self.route_cat = cat;
+                let query = QRandomSample { label: self.route_cat.clone(), limit: Some(10) };
+                App::display_word_cloud(query);
+                true
+            }
             RefreshSample => {
-                App::display_symptom_word_cloud();
+                log::info!("RefreshSample");
+                let query = QRandomSample { label: self.route_cat.clone(), limit: Some(10) };
+                App::display_word_cloud(query);
                 true
             }
             _ => false,
@@ -157,12 +168,6 @@ impl App {
         }
         );
 
-        let refresh_sample = link.callback(|_| {
-            AppMsg::RefreshSample
-        }
-        );
-
-
         html! {
             <section class="navbar">
                 <nav class="navbar" role="navigation" aria-label="main navigation">
@@ -190,16 +195,18 @@ impl App {
                                 // { "Home" }
                                 // </a>
 
-                            <Link<Route> classes={classes!("navbar-item")} route={Route::Symptom} >
-                                <span class="is-danger" ondblclick={refresh_sample}>
-                                    { "症状" }
-                                </span>
-                            </Link<Route>>
+                            // <Link<Route> classes={classes!("navbar-item")} route={Route::Category} >
+                            //     <span class="is-danger" ondblclick={refresh_sample}>
+                            //         { "症状" }
+                            //     </span>
+                            // </Link<Route>>
+
+                            { self.view_nav_cats(link) }
 
                         </div>
 
                         <div class="navbar-end">
-                            { self.view_nav_cats(link) }
+                            { self.view_nav_search_cats(link) }
 
                              <div class="navbar-item">
                                 <div class="field">
@@ -219,7 +226,119 @@ impl App {
         }
     }
 
+
     fn view_nav_cats(&self, link: &Scope<Self>) -> Html {
+        let refresh_sample = link.callback(|_| {
+            AppMsg::RefreshSample
+        }
+        );
+
+        html! {
+            <div class="navbar-item has-dropdown is-hoverable">
+                // <a class="navbar-link is-arrowless">
+                //     <div class="field has-addons">
+                //         <span class="is-warning is-light" ondblclick={refresh_sample}> { self.route_cat.clone() }  </span>
+                //     </div>
+                // </a>
+
+
+                <Link<Route> classes={classes!("navbar-link", "is-arrowless")} route={Route::Category{
+                             query: QRandomSample {
+                                label: self.route_cat.clone(),
+                                limit: Some(10),
+                             }}} >
+                    <div class="field has-addons">
+                        // <span class="is-warning is-light" ondblclick={refresh_sample.clone()} > { self.route_cat.clone() }  </span>
+                        <span onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Symptom))} ondblclick={refresh_sample.clone()} > { self.route_cat.clone() } </span>
+                    </div>
+                </Link<Route>>
+
+
+                // <div classes={classes!("navbar-link", "is-arrowless")}>
+                //     <div class="field has-addons">
+                //         <span class="is-warning is-light" ondblclick={refresh_sample}> { self.route_cat.clone() }  </span>
+                //     </div>
+                // </div>
+
+                // <div class="navbar-dropdown">
+                //     <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Symptom))} >
+                //         { "Symptom" }
+                //     </a>
+                //
+                //     <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Disease))} >
+                //         { "Disease" }
+                //     </a>
+                //     <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Drug))} >
+                //         { "Drug" }
+                //     </a>
+                //     // <hr class="navbar-divider" onclick={link.callback(|_| AppMsg::ChangeSearchCat(Category::Department))} >
+                //     <a class="navbar-item">
+                //         { "Department" }
+                //     </a>
+                //     <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Check))} >
+                //         { "Check" }
+                //     </a>
+                //     <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Area))} >
+                //         { "Area" }
+                //     </a>
+                // </div>
+
+
+                <div class="navbar-dropdown">
+                    <Link<Route> classes={classes!("navbar-item")} route={Route::Category{
+                                 query: QRandomSample {
+                                    label: NodeLabel::Symptom,
+                                    limit: Some(10),
+                                 }}} >
+                        <span onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Symptom))} ondblclick={refresh_sample.clone()} > { "Symptom" }  </span>
+                    </Link<Route>>
+
+                    <Link<Route> classes={classes!("navbar-item")} route={Route::Category{
+                                 query: QRandomSample {
+                                    label: NodeLabel::Disease,
+                                    limit: Some(10),
+                                 }}} >
+                        <span onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Disease))} ondblclick={refresh_sample.clone()} > { "Disease" }  </span>
+                    </Link<Route>>
+
+                    <Link<Route> classes={classes!("navbar-item")} route={Route::Category{
+                                 query: QRandomSample {
+                                    label: NodeLabel::Drug,
+                                    limit: Some(10),
+                                 }}} >
+                        <span onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Drug))} ondblclick={refresh_sample.clone()} > { "Drug" }  </span>
+                    </Link<Route>>
+
+                    <Link<Route> classes={classes!("navbar-item")} route={Route::Category{
+                                 query: QRandomSample {
+                                    label: NodeLabel::Department,
+                                    limit: Some(10),
+                                 }}} >
+                        <span onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Department))} ondblclick={refresh_sample.clone()} > { "Department" }  </span>
+                    </Link<Route>>
+
+                    <Link<Route> classes={classes!("navbar-item")} route={Route::Category{
+                                 query: QRandomSample {
+                                    label: NodeLabel::Check,
+                                    limit: Some(10),
+                                 }}} >
+                        <span onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Check))} ondblclick={refresh_sample.clone()} > { "Check" }  </span>
+                    </Link<Route>>
+
+                    <Link<Route> classes={classes!("navbar-item")} route={Route::Category{
+                                 query: QRandomSample {
+                                    label: NodeLabel::Area,
+                                    limit: Some(10),
+                                 }}} >
+                        <span onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Area))} ondblclick={refresh_sample} > { "Area" }  </span>
+                    </Link<Route>>
+                </div>
+            </div>
+        }
+    }
+
+
+    fn view_nav_search_cats(&self, link: &Scope<Self>) -> Html {
         html! {
             <div class="navbar-item has-dropdown is-hoverable">
                 <a class="navbar-link is-arrowless">
@@ -316,12 +435,11 @@ impl App {
         }
     }
 
-    pub fn display_symptom_word_cloud() {
+    pub fn display_word_cloud(query: QRandomSample) {
         // get data from server
         spawn_local(
-            async {
-                // TODO: use user interactive data
-                let query = QRandomSample { label: NodeLabel::Symptom, limit: Some(10) };
+            async move {
+                log::info!("execute display_word_cloud!");
                 let data = Self::get_word_cloud_data(query).await.map_err(|e| {
                     log::error!("{}", e);
                     e
@@ -334,7 +452,7 @@ impl App {
                 } else {
                     None
                 };
-                bindings::display_symptom_word_cloud(dbg!(data));
+                bindings::display_word_cloud(data);
             }
         );
     }
@@ -566,8 +684,8 @@ fn switch(routes: &Route) -> Html {
         Route::Home => {
             html! { <Home /> }
         }
-        Route::Symptom => {
-            html! { <PageSymptom /> }
+        Route::Category { query } => {
+            html! { <PageCategory query={*query}/> }
         }
         Route::NotFound => {
             html! { <PageNotFound /> }

@@ -25,7 +25,8 @@ use futures_util::stream::StreamExt as _;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use platform::kg::{self, IncreaseUpdateState, Kg, NodeInfo, QRandomSample};
+use platform::data::QRandomSample;
+use platform::kg::{self, IncreaseUpdateState, Kg, NodeInfo};
 use platform::session::GraphSession;
 
 const GRAPHSESSION: &'static str = "GraphSession";

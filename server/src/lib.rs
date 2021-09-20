@@ -5,8 +5,6 @@ cfg_if::cfg_if! {
         pub mod data;
         pub use data::GraphData;
     } else {
-        extern crate anyhow;
-
         pub mod common;
         pub mod kg;
         pub mod neo4j;

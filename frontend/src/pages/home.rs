@@ -1,15 +1,18 @@
+use web_sys::HtmlElement;
 use yew::prelude::*;
 
 use crate::app::App;
 
-pub struct Home;
+pub struct Home {
+    network_ref: NodeRef,
+}
 
 impl Component for Home {
     type Message = ();
     type Properties = ();
 
     fn create(_ctx: &Context<Self>) -> Self {
-        Self
+        Self { network_ref: NodeRef::default() }
     }
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
@@ -17,6 +20,18 @@ impl Component for Home {
             <>
                 { self.view_chart() }
             </>
+        }
+    }
+
+    fn rendered(&mut self, _ctx: &Context<Self>, first_render: bool) {
+        // first_render, auto load data, no interactive event emmit
+        if first_render {
+            if self.network_ref.cast::<HtmlElement>().is_some() {
+                log::info!("the div exists!");
+                App::display_main();
+            } else {
+                log::info!("the div not exists!");
+            }
         }
     }
 }
@@ -46,12 +61,11 @@ impl Home {
         let node = html! {
                  <div class="block">
                      <div class="container network">
-                         <div id="network" style="width:90%;height:1000px;margin:auto"></div>
+                         <div ref={self.network_ref.clone()} id="network" style="width:90%;height:1000px;margin:auto"></div>
                          <div id="stats_rels" style="width:90%;height:1000px;margin:auto"></div>
                      </div>
                  </div>
         };
-        App::display_main();
         node
     }
 

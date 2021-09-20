@@ -389,7 +389,7 @@ export function getOption(selector = "network") {
 // }
 
 
-export function displaySymptomWordCloud(data = []) {
+export function displayWordCloud(data = []) {
   console.log("recevie data: ", data);
   if (data.length === 0) {
     data = [
@@ -408,7 +408,7 @@ export function displaySymptomWordCloud(data = []) {
   console.log(data);
 
   // let wcChart= getEchartInstance("symptom_word_cloud", "canvas");
-  let wcChart = getEchartInstance("symptom_word_cloud");
+  let wcChart = getEchartInstance("category_word_cloud");
 
   var option = {
     series: [{

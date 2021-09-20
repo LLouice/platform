@@ -402,11 +402,20 @@ impl Kg {
         let limit = limit.unwrap_or(10);
 
         let graph = init_graph().await;
-        let cypher = format!(
-            "MATCH(node:{}) -[r]-> (t) WHERE rand() < 0.1 RETURN node, COUNT(DISTINCT t) as num LIMIT {}",
+        let cypher_out = format!(
+            "MATCH(node:{}) -[r]-> (t) WHERE rand() < 0.5 RETURN node, COUNT(DISTINCT t) as num LIMIT {}",
             label,
             limit
         );
+        let cypher_in = format!(
+            "MATCH(h) -[r]-> (node:{}) WHERE rand() < 0.5 RETURN node, COUNT(DISTINCT h) as num LIMIT {}",
+            label,
+            limit
+        );
+        let cypher = match label {
+            NodeLabel::Symptom => cypher_out,
+            _ => cypher_in,
+        };
         log::debug!("random_sample: {:?}", cypher);
         let mut result = graph
             .execute(query(cypher.as_str()))
@@ -430,7 +439,7 @@ impl Kg {
 }
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct RandomSampleResult {
     name: String,
     #[serde(rename = "value")]

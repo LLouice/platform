@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+use std::fmt::{Display, Formatter};
+
+use anyhow;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -126,7 +129,7 @@ pub struct GraphDataD3 {
 
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeLabel {
     Symptom,
     Disease,
@@ -157,9 +160,49 @@ impl std::fmt::Display for NodeLabel {
     }
 }
 
+impl core::str::FromStr for NodeLabel {
+    type Err = anyhow::Error;
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Symptom" => Ok(NodeLabel::Symptom),
+            "Disease" => Ok(NodeLabel::Disease),
+            "Drug" => Ok(NodeLabel::Drug),
+            "Department" => Ok(NodeLabel::Department),
+            "Check" => Ok(NodeLabel::Check),
+            "Area" => Ok(NodeLabel::Area),
+            _ => Err(anyhow::anyhow!("ParseNodeLabelError")),
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct QRandomSample {
     pub label: NodeLabel,
     pub limit: Option<usize>,
+}
+
+impl Display for QRandomSample {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let limit = self.limit.unwrap_or(10);
+        write!(f, "{}&limit={}", self.label, limit)
+    }
+}
+
+impl core::str::FromStr for QRandomSample {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let stuff: Vec<&str> = s.trim()
+            .split("&limit=")
+            .collect();
+        let label = stuff[0].parse::<NodeLabel>();
+        let limit = stuff[1].parse::<usize>();
+
+        match (label, limit) {
+            (Ok(label), Ok(limit)) => Ok(QRandomSample { label, limit: Some(limit) }),
+            _ => Err(anyhow::anyhow!("ParseQRandomSampleError")),
+        }
+    }
 }
