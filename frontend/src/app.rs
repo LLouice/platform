@@ -9,8 +9,9 @@ use yew::html::Scope;
 use yew::prelude::*;
 use yew::utils::{document, window};
 use yew_router::prelude::*;
+use yew_router::push_route;
 
-use platform::data::{NodeLabel, QRandomSample};
+pub(crate) use platform::data::{NodeInfo, NodeLabel, QRandomSample};
 
 use crate::{into_js_fn, into_js_fn_mut, js_apply, js_get, js_set};
 use crate::bindings;
@@ -20,20 +21,25 @@ use crate::pages::{category::PageCategory, home::Home, page_not_found::PageNotFo
 pub(crate) struct App {
     search_inp: NodeRef,
     search_cat: NodeLabel,
+    search_value: Option<String>,
     search_placeholder: String,
     navbar_active: bool,
     route_cat: NodeLabel,
 }
 
-
 #[derive(Routable, PartialEq, Clone, Debug)]
 pub enum Route {
     // #[at("/posts/:id")]
     // Post { id: u64 },
-    #[at("/category/:query")]
-    Category { query: QRandomSample },
     #[at("/")]
     Home,
+
+    #[at("/:node_info")]
+    Network { node_info: NodeInfo },
+
+    #[at("/category/:query")]
+    Category { query: QRandomSample },
+
     #[not_found]
     #[at("/404")]
     NotFound,
@@ -76,6 +82,7 @@ impl Component for App {
 
             Search(value) => {
                 log::info!("enter input the input is {:?}", value);
+                self.search_value = Some(value.clone());
                 self.search(value);
                 true
             }
@@ -85,12 +92,12 @@ impl Component for App {
                 inp.set_value("");
                 // change search_placeholder
                 let ph = match cat {
-                    NodeLabel::Symptom => { "肩背痛" }
-                    NodeLabel::Disease => { "皮肤炎症" }
-                    NodeLabel::Drug => { "undefined" }
-                    NodeLabel::Department => { "undefined" }
-                    NodeLabel::Check => { "undefined" }
-                    _ => { "undefined" }
+                    NodeLabel::Symptom => "肩背痛",
+                    NodeLabel::Disease => "皮肤炎症",
+                    NodeLabel::Drug => "undefined",
+                    NodeLabel::Department => "undefined",
+                    NodeLabel::Check => "undefined",
+                    _ => "undefined",
                 };
                 self.search_placeholder = ph.to_string();
 
@@ -109,13 +116,19 @@ impl Component for App {
             ChangeRouteCat(cat) => {
                 log::info!("ChangeRouteCat");
                 self.route_cat = cat;
-                let query = QRandomSample { label: self.route_cat.clone(), limit: Some(10) };
+                let query = QRandomSample {
+                    label: self.route_cat,
+                    limit: Some(10),
+                };
                 App::display_word_cloud(query);
                 true
             }
             RefreshSample => {
                 log::info!("RefreshSample");
-                let query = QRandomSample { label: self.route_cat.clone(), limit: Some(10) };
+                let query = QRandomSample {
+                    label: self.route_cat,
+                    limit: Some(10),
+                };
                 App::display_word_cloud(query);
                 true
             }
@@ -163,10 +176,7 @@ impl App {
             }
         });
 
-        let fill_placeholder = link.callback(|_| {
-            AppMsg::FillPlaceholder
-        }
-        );
+        let fill_placeholder = link.callback(|_| AppMsg::FillPlaceholder);
 
         html! {
             <section class="navbar">
@@ -187,8 +197,11 @@ impl App {
                     <div class={classes!("navbar-menu", active_class)}>
                         <div class="navbar-start">
 
-                            <Link<Route> classes={classes!("navbar-item")} route={Route::Home}>
-                                { "Home" }
+                            <Link<Route> classes={classes!("navbar-item")}
+                                         route={Route::Network{ node_info: NodeInfo {label: self.search_cat,
+                                                             name: if let Some(v) = &self.search_value
+                                                                    { v.clone()} else {self.search_placeholder.clone()}
+                                         }} }> { "Home" }
                             </Link<Route>>
 
                             // <a class="navbar-item">
@@ -226,37 +239,33 @@ impl App {
         }
     }
 
-
     fn view_nav_cats(&self, link: &Scope<Self>) -> Html {
-        let refresh_sample = link.callback(|_| {
-            AppMsg::RefreshSample
-        }
-        );
+        let refresh_sample = link.callback(|_| AppMsg::RefreshSample);
 
         html! {
             <div class="navbar-item has-dropdown is-hoverable">
                 // <a class="navbar-link is-arrowless">
                 //     <div class="field has-addons">
-                //         <span class="is-warning is-light" ondblclick={refresh_sample}> { self.route_cat.clone() }  </span>
+                //         <span class="is-warning is-light" ondblclick={refresh_sample}> { self.route_cat }  </span>
                 //     </div>
                 // </a>
 
 
                 <Link<Route> classes={classes!("navbar-link", "is-arrowless")} route={Route::Category{
                              query: QRandomSample {
-                                label: self.route_cat.clone(),
+                                label: self.route_cat,
                                 limit: Some(10),
                              }}} >
                     <div class="field has-addons">
-                        // <span class="is-warning is-light" ondblclick={refresh_sample.clone()} > { self.route_cat.clone() }  </span>
-                        <span onclick={link.callback(|_| AppMsg::ChangeRouteCat(NodeLabel::Symptom))} ondblclick={refresh_sample.clone()} > { self.route_cat.clone() } </span>
+                        // <span class="is-warning is-light" ondblclick={refresh_sample.clone()} > { self.route_cat }  </span>
+                        <span onclick={refresh_sample.clone()} ondblclick={refresh_sample.clone()} > { self.route_cat } </span>
                     </div>
                 </Link<Route>>
 
 
                 // <div classes={classes!("navbar-link", "is-arrowless")}>
                 //     <div class="field has-addons">
-                //         <span class="is-warning is-light" ondblclick={refresh_sample}> { self.route_cat.clone() }  </span>
+                //         <span class="is-warning is-light" ondblclick={refresh_sample}> { self.route_cat }  </span>
                 //     </div>
                 // </div>
 
@@ -337,7 +346,6 @@ impl App {
         }
     }
 
-
     fn view_nav_search_cats(&self, link: &Scope<Self>) -> Html {
         html! {
             <div class="navbar-item has-dropdown is-hoverable">
@@ -393,7 +401,7 @@ impl App {
     fn search(&mut self, name: String) {
         // let resp = spawn_local(async move {
         //     let uri = format!(
-        //         "http://localhost:9090/get_out_links?src_type=Symptom&name={}",
+        //         "http://localhost:9090/get_out_links?label=Symptom&name={}",
         //         name
         //     );
 
@@ -403,13 +411,19 @@ impl App {
         //     log::info!("graph_data: {:?}", graph_data);
         // });
         log::debug!("search cat: {}", self.search_cat);
-        spawn_local(bindings::display_network(self.search_cat.to_string(), name));
+        // spawn_local(bindings::display_network(self.search_cat.to_string(), name));
         // insert slider
-        log::info!("insert slider...");
-        Self::insert_slider();
+        log::info!("Switch into Route::Network...");
+        // Switch route
+        push_route(Route::Network {
+            node_info: NodeInfo {
+                label: self.search_cat,
+                name,
+            }
+        }
+        );
     }
 }
-
 
 // function
 impl App {
@@ -418,8 +432,7 @@ impl App {
         let limit = limit.unwrap_or(10);
         let uri = format!(
             "http://localhost:9090/random_sample?label={}&limit={}",
-            label,
-            limit
+            label, limit
         );
 
         let resp = Request::get(&uri).send().await.unwrap();
@@ -437,31 +450,30 @@ impl App {
 
     pub fn display_word_cloud(query: QRandomSample) {
         // get data from server
-        spawn_local(
-            async move {
-                log::info!("execute display_word_cloud!");
-                let data = Self::get_word_cloud_data(query).await.map_err(|e| {
-                    log::error!("{}", e);
-                    e
-                });
+        spawn_local(async move {
+            log::info!("execute display_word_cloud!");
+            let data = Self::get_word_cloud_data(query).await.map_err(|e| {
+                log::error!("{}", e);
+                e
+            });
 
-                let data = if let Ok(data) = data {
-                    js_sys::JSON::parse(data.as_str())
-                        .map(|ref x| js_sys::Array::from(x))
-                        .ok()
-                } else {
-                    None
-                };
-                bindings::display_word_cloud(data);
-            }
-        );
+            let data = if let Ok(data) = data {
+                js_sys::JSON::parse(data.as_str())
+                    .map(|ref x| js_sys::Array::from(x))
+                    .ok()
+            } else {
+                None
+            };
+            bindings::display_word_cloud(data);
+        });
     }
 
-
-    pub fn display_main() {
-        spawn_local(async {
-            bindings::main().await;
-            App::insert_slider();
+    pub fn display_main(label: Option<NodeLabel>, name: Option<String>, first_render: bool) {
+        spawn_local(async move {
+            bindings::main(label.map(|x| x.to_string()), name).await;
+            if first_render {
+                App::insert_slider();
+            }
         });
     }
 
@@ -479,7 +491,9 @@ impl App {
         if let Some(network_svg) = network_svg {
             log::debug!("network_svg exists");
             // svg position
-            let svg_rec = network_svg.unchecked_ref::<Element>().get_bounding_client_rect();
+            let svg_rec = network_svg
+                .unchecked_ref::<Element>()
+                .get_bounding_client_rect();
             // from left client
             let svg_left: f64 = svg_rec.left();
             let svg_width: f64 = svg_rec.width();
@@ -517,7 +531,11 @@ impl App {
 
             let get_ratio = move |pos: f64| {
                 let x = 1. + (pos - c) / line_half_r;
-                if x > 0. { x } else { 0. }
+                if x > 0. {
+                    x
+                } else {
+                    0.
+                }
             };
 
             log::info!("x1: {:?}, x2: {:?}, c: {:?}", x1, x2, c);
@@ -621,18 +639,20 @@ impl App {
 
             slider.append_child(&dot)?;
 
-            let dblclick: Function = into_js_fn!(move ||{
+            let dblclick: Function = into_js_fn!(move || {
                 log::info!("on dblclick");
                 let _e: MouseEvent = window().event().unchecked_into();
                 let dot = document().query_selector("#dot").unwrap().unwrap();
-                let _ = js_set!(&dot, "transform", "baseVal", "0", "matrix" => "e", c).map_err(|e| log::error!("{:?}", e));
+                let _ = js_set!(&dot, "transform", "baseVal", "0", "matrix" => "e", c)
+                    .map_err(|e| log::error!("{:?}", e));
                 // reset ratio and symbolSize
                 let pre_ratio = js_get!(&dot, "ratio");
                 let pre_ratio: f64 = match pre_ratio {
-                    Ok(x) => {x.as_f64().unwrap_or(1.0)}
-                    Err(_) => {1.0}
+                    Ok(x) => x.as_f64().unwrap_or(1.0),
+                    Err(_) => 1.0,
                 };
-                let _ = Self::change_symbol_size(pre_ratio, 1.0).map_err(|e| log::error!("{:?}", e));
+                let _ =
+                    Self::change_symbol_size(pre_ratio, 1.0).map_err(|e| log::error!("{:?}", e));
                 let _ = js_set!(&dot, "ratio", 1.0);
             });
             slider.set_ondblclick(Some(&dblclick));
@@ -657,9 +677,7 @@ impl App {
         log::debug!("opt: {:?}", opt_data);
 
         // iterate data to change it's SymbolSize
-        let it = js_sys::try_iter(&opt_data)?.ok_or_else(|| {
-            "need to pass iterable JS values!"
-        })?;
+        let it = js_sys::try_iter(&opt_data)?.ok_or_else(|| "need to pass iterable JS values!")?;
 
         for x in it {
             // If the iterator's `next` method throws an error, propagate it
@@ -667,7 +685,9 @@ impl App {
             let x = x?;
 
             // If `x` is a number, add it to our array of numbers!
-            let symbol_size = js_get!(&x, "symbolSize")?.as_f64().ok_or("no symbolSize in Option data")?;
+            let symbol_size = js_get!(&x, "symbolSize")?
+                .as_f64()
+                .ok_or("no symbolSize in Option data")?;
             log::debug!("ratio: {}, new symbolSize {:?}", ratio, symbol_size * ratio);
             let _ = js_set!(&x, "symbolSize", symbol_size / pre_ratio * ratio);
             log::debug!("{:?}", js_get!(&x, "symbolSize"));
@@ -682,7 +702,11 @@ impl App {
 fn switch(routes: &Route) -> Html {
     match routes {
         Route::Home => {
-            html! { <Home /> }
+            html! { <Home label={let x: Option<NodeLabel> = None; x} name={let x: Option<String> = None; x} /> }
+        }
+        Route::Network { node_info: NodeInfo { label, name } } => {
+            log::debug!("in switch route Network, label: {:?} name: {:?}", label, name);
+            html! { <Home label={Some(*label)} name={Some(name.clone())} /> }
         }
         Route::Category { query } => {
             html! { <PageCategory query={*query}/> }
@@ -720,7 +744,6 @@ pub fn run() {
     // log::debug!("insert res: {:?}", res);
 
     // ---- debug ----
-
 
     log::info!("after start app");
 }

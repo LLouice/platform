@@ -1,18 +1,27 @@
 use web_sys::HtmlElement;
 use yew::prelude::*;
 
-use crate::app::App;
+use crate::app::{App, NodeLabel};
 
 pub struct Home {
     network_ref: NodeRef,
 }
 
+#[derive(Properties, Clone, PartialEq)]
+pub struct HomeProps {
+    pub label: Option<NodeLabel>,
+    pub name: Option<String>,
+}
+
 impl Component for Home {
     type Message = ();
-    type Properties = ();
+    type Properties = HomeProps;
 
     fn create(_ctx: &Context<Self>) -> Self {
-        Self { network_ref: NodeRef::default() }
+        log::info!("Network page created, props::name: {:?}", _ctx.props().name);
+        Self {
+            network_ref: NodeRef::default(),
+        }
     }
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
@@ -23,20 +32,18 @@ impl Component for Home {
         }
     }
 
-    fn rendered(&mut self, _ctx: &Context<Self>, first_render: bool) {
-        // first_render, auto load data, no interactive event emmit
-        if first_render {
-            if self.network_ref.cast::<HtmlElement>().is_some() {
-                log::info!("the div exists!");
-                App::display_main();
-            } else {
-                log::info!("the div not exists!");
-            }
+    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
+        log::info!("Network rendered...");
+        if self.network_ref.cast::<HtmlElement>().is_some() {
+            log::info!("the div exists!");
+            // ctx is shared reference
+            log::debug!("{:?}", ctx.props().name);
+            App::display_main(ctx.props().label, ctx.props().name.clone(), first_render);
+        } else {
+            log::info!("the div not exists!");
         }
     }
 }
-
-
 
 impl Home {
     #[allow(dead_code)]

@@ -15,8 +15,8 @@ CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 # ini, init is cargo-make default task name
 # due to inputing sudo password, no parallel here
 [tasks.ini]
-run_task = { name = ["init_neo4j", "inc_fs_notify", "redis"], fork = true }
-#run_task = { name = ["init_neo4j", "redis"], fork = true }
+#run_task = { name = ["init_neo4j", "inc_fs_notify", "redis"], fork = true }
+run_task = { name = ["init_neo4j", "redis"], fork = true }
 
 
 # redis

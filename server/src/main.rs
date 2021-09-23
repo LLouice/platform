@@ -25,8 +25,8 @@ use futures_util::stream::StreamExt as _;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use platform::data::QRandomSample;
-use platform::kg::{self, IncreaseUpdateState, Kg, NodeInfo};
+use platform::data::{NodeInfo, QRandomSample};
+use platform::kg::{self, IncreaseUpdateState, Kg};
 use platform::session::GraphSession;
 
 const GRAPHSESSION: &'static str = "GraphSession";
@@ -48,10 +48,10 @@ async fn query_links(
 ) -> Result<HttpResponse, Error> {
     Kg::query_node_links(&node_info).await;
 
-    let NodeInfo { src_type, name } = &node_info;
+    let NodeInfo { label, name } = &node_info;
 
     let res = Kg::convert_dedup(
-        src_type.as_str(),
+        label,
         name.as_str(),
         Kg::query_node_links(&node_info).await,
     );
@@ -86,7 +86,7 @@ async fn get_out_links(
     session: Session,
 ) -> Result<HttpResponse, Error> {
     log::info!("in get_out_links");
-    // TODO add src_type as key, for preventing from set data again
+    // TODO add node label as key, for preventing from set data again
     log::debug!("{:?}", node_info);
 
     log::debug!("get session: {:?}", session.entries());
@@ -96,11 +96,11 @@ async fn get_out_links(
         log::error!("no graph session");
     }
 
-    let NodeInfo { src_type, name } = node_info;
+    let NodeInfo { label, name } = node_info;
     let res = Kg::convert_dedup(
-        src_type.as_str(),
+        &label,
         name.as_str(),
-        Kg::get_out_links(src_type.as_str(), name.as_str()).await,
+        Kg::get_out_links(label, name.as_str()).await,
     );
 
     // ugly unpack
@@ -141,17 +141,17 @@ async fn get_out_links_d3(
     web::Query(node_info): web::Query<NodeInfo>,
 ) -> Result<HttpResponse, Error> {
     println!("{:?}", node_info);
-    let NodeInfo { src_type, name } = node_info;
+    let NodeInfo { label, name } = node_info;
     let res = Kg::convert_d3_dedup(
-        src_type.as_str(),
+        label,
         name.as_str(),
-        dbg!(Kg::get_out_links(src_type.as_str(), name.as_str()).await),
+        dbg!(Kg::get_out_links(label, name.as_str()).await),
     )
-    .map(|x| HttpResponse::Ok().json(x))
-    .map_err(|e| {
-        // InternalError::from_response("error", HttpResponse::InternalServerError().finish())
-        ErrorInternalServerError(e)
-    })?;
+        .map(|x| HttpResponse::Ok().json(x))
+        .map_err(|e| {
+            // InternalError::from_response("error", HttpResponse::InternalServerError().finish())
+            ErrorInternalServerError(e)
+        })?;
     Ok(res)
 }
 
@@ -159,26 +159,26 @@ async fn get_out_links_d3(
 #[get("/debug/get_out_links")]
 async fn _get_out_links(web::Query(node_info): web::Query<NodeInfo>) -> impl Responder {
     println!("{:?}", node_info);
-    let NodeInfo { src_type, name } = node_info;
+    let NodeInfo { label, name } = node_info;
     // let res = Kg::convert_dedup(
     //     src_type.as_str(),
     //     name.as_str(),
     //     dbg!(Kg::get_out_links(src_type.as_str(), name.as_str()).await),
     // )
-    let res = dbg!(Kg::get_out_links(src_type.as_str(), name.as_str()).await);
+    let res = dbg!(Kg::get_out_links(label, name.as_str()).await);
     web::Json(res)
 }
 
 #[get("/get_in_links")]
 async fn get_in_links(web::Query(node_info): web::Query<NodeInfo>) -> impl Responder {
     println!("{:?}", node_info);
-    let NodeInfo { src_type, name } = node_info;
+    let NodeInfo { label, name } = node_info;
     // let res = Kg::convert_dedup(
     //     src_type.as_str(),
     //     name.as_str(),
     //     dbg!(Kg::get_out_links(src_type.as_str(), name.as_str()).await),
     // )
-    let res = dbg!(Kg::get_in_links(src_type.as_str(), name.as_str()).await);
+    let res = dbg!(Kg::get_in_links(label, name.as_str()).await);
     web::Json(res)
 }
 
@@ -230,7 +230,6 @@ async fn increase_update(
             Err(e) => Err(ErrorInternalServerError(e)),
         }
     } else {
-        // FIXME return InternalError
         log::error!("no graph session");
         Err(ErrorBadRequest("no grpah session"))
     }

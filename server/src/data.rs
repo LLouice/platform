@@ -206,3 +206,55 @@ impl core::str::FromStr for QRandomSample {
         }
     }
 }
+
+///////////////////////////
+// api query / payload info
+///////////////////////////
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct NodeInfo {
+    pub label: NodeLabel,
+    pub name: String,
+}
+
+
+impl Display for NodeInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}::{}", self.label, self.name)
+    }
+}
+
+impl core::str::FromStr for NodeInfo {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let stuff: Vec<&str> = s.trim()
+            .split("::")
+            .collect();
+        let label = stuff[0].parse::<NodeLabel>();
+        let name = urlencoding::decode(stuff[1]).map(|x| x.into_owned());
+        match (label, name) {
+            (Ok(label), Ok(name)) => Ok(Self { label, name }),
+            _ => Err(anyhow::anyhow!("ParseNodeInfoError")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn urldecode() {
+        let raw_str = "%E4%BF%A1%E5%8F%AF%E6%AD%A2";
+        let res = urlencoding::decode(raw_str);
+        eprintln!("\nres: {:?}\n", res);
+        assert_eq!(res.unwrap().into_owned(), "信可止");
+    }
+
+    #[test]
+    fn urlencode() {
+        let raw_str = "信可止";
+        let res = urlencoding::encode(raw_str);
+        eprintln!("\nres: {:?}\n", res);
+    }
+}

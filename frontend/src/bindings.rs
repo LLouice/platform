@@ -7,7 +7,7 @@ extern "C" {
     pub fn get_element_by_id(selector: String) -> JsValue;
 
     #[wasm_bindgen(js_name = "displayNetwork")]
-    pub async fn display_network(src_type: String, name: String);
+    pub async fn display_network(label: String, name: String);
 
     #[wasm_bindgen(js_name = "displayWordCloud")]
     pub fn display_word_cloud(data: Option<js_sys::Array>);
@@ -19,7 +19,7 @@ extern "C" {
     // pub fn set_echarts_option(chart: &JsValue, opt: &JsValue);
 
     #[wasm_bindgen(js_name = "main")]
-    pub async fn main();
+    pub async fn main(label: Option<String>, name: Option<String>);
 
     #[wasm_bindgen(js_name = "main_with_cb")]
     pub fn main_with_cb(f: Function);

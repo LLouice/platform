@@ -5,7 +5,7 @@ use chrono::NaiveDateTime;
 use neo4rs::*;
 use serde::{Deserialize, Serialize};
 
-use crate::data::{Category, GraphData, GraphDataD3, Link, LinkD3, Node as DNode, NodeLabel, QRandomSample};
+use crate::data::{Category, GraphData, GraphDataD3, Link, LinkD3, Node as DNode, NodeInfo, NodeLabel, QRandomSample};
 use crate::neo4j::init_graph;
 use crate::session::GraphSession;
 
@@ -31,11 +31,11 @@ pub struct Kg;
 
 impl Kg {
     // FIXME: eliminate the unwrap and expect
-    pub async fn get_out_links(src_type: &str, name: &str) -> Vec<LinksResult> {
+    pub async fn get_out_links(node_label: NodeLabel, name: &str) -> Vec<LinksResult> {
         let graph = init_graph().await;
         let cypher = format!(
             "match (ps:{}{{name:$name}}) -[r]-> (pt) return ps,r,pt",
-            src_type
+            node_label
         );
         let mut result = graph
             .execute(query(cypher.as_str()).param("name", name))
@@ -53,11 +53,11 @@ impl Kg {
         res
     }
 
-    pub async fn get_in_links(target_type: &str, name: &str) -> Vec<LinksResult> {
+    pub async fn get_in_links(node_label: NodeLabel, name: &str) -> Vec<LinksResult> {
         let graph = init_graph().await;
         let cypher = format!(
             "match (ps) -[r]-> (pt:{}{{name:$name}})  return ps,r,pt",
-            target_type
+            node_label
         );
         let mut result = graph
             .execute(query(cypher.as_str()).param("name", name))
@@ -130,7 +130,7 @@ impl Kg {
     }
 
     pub fn convert_dedup(
-        src_type: &str,
+        label: &NodeLabel,
         name: &str,
         kg_res: Vec<LinksResult>,
     ) -> anyhow::Result<(GraphData, GraphSession)> {
@@ -141,10 +141,10 @@ impl Kg {
         let mut categories = vec![];
 
         let mut cats: HashMap<String, usize> = HashMap::new();
-        cats.insert(src_type.to_owned(), 0);
-        categories.push(Category::new(src_type.to_owned()));
+        cats.insert(label.to_string(), 0);
+        categories.push(Category::new(label.to_string()));
 
-        let des = format!("{}::{}", src_type, name);
+        let des = format!("{}::{}", label, name);
         let node_id = node_keys.len();
         let _ = *node_keys.entry(des.clone()).or_insert(node_id);
 
@@ -212,7 +212,7 @@ impl Kg {
         kg_res: Vec<LinksResult>,
         sess: GraphSession,
     ) -> anyhow::Result<(GraphData, GraphSession)> {
-        let NodeInfo { src_type, name } = node_info;
+        let NodeInfo { label, name } = node_info;
 
         // this is sess is a new copy Deserialized from the inner String
         let GraphSession {
@@ -221,7 +221,7 @@ impl Kg {
         } = sess;
 
         // get current node info
-        let current_node_des = format!("{}::{}", src_type, name);
+        let current_node_des = format!("{}::{}", label, name);
         let current_node_id = node_keys.get(&current_node_des).unwrap().to_owned();
 
         let mut nodes = vec![];
@@ -324,7 +324,7 @@ impl Kg {
     }
 
     pub fn convert_d3_dedup(
-        src_type: &str,
+        node_label: NodeLabel,
         name: &str,
         kg_res: Vec<LinksResult>,
     ) -> anyhow::Result<GraphDataD3> {
@@ -335,11 +335,10 @@ impl Kg {
         let mut categories = vec![];
 
         let mut cats = HashMap::new();
-        cats.insert(vec![src_type.to_owned()], 0);
-        // categories.push(Category::new(src_type.to_owned()));
-        categories.push(Category::new(src_type.to_owned()));
+        cats.insert(vec![node_label.to_string()], 0);
+        categories.push(Category::new(node_label.to_string()));
 
-        let des = format!("{}::{}", src_type, name);
+        let des = format!("{}::{}", node_label, name);
         node_keys.insert(des.clone());
         let main_node = DNode::new(0, name.to_owned(), des, 70, 0);
         nodes.push(main_node);
@@ -390,11 +389,11 @@ impl Kg {
         })
     }
 
-    pub async fn query_node_links(NodeInfo { src_type, name }: &NodeInfo) -> Vec<LinksResult> {
-        if src_type == "Symptom" {
-            Self::get_out_links(src_type.as_str(), name.as_str()).await
+    pub async fn query_node_links(NodeInfo { label, name }: &NodeInfo) -> Vec<LinksResult> {
+        if *label == NodeLabel::Symptom {
+            Self::get_out_links(*label, name.as_str()).await
         } else {
-            Self::get_in_links(src_type.as_str(), name.as_str()).await
+            Self::get_in_links(*label, name.as_str()).await
         }
     }
 
@@ -451,7 +450,7 @@ pub struct RandomSampleResult {
 
 #[derive(Default, Debug)]
 pub struct Stats {
-    pub type_name: String,
+    pub label: NodeLabel,
     pub count: usize,
     pub area: usize,
     pub check: usize,
@@ -462,17 +461,17 @@ pub struct Stats {
 }
 
 impl Stats {
-    pub fn new(type_name: String) -> Self {
+    pub fn new(label: NodeLabel) -> Self {
         Stats {
-            type_name,
+            label,
             ..Default::default()
         }
     }
 }
 
 impl Kg {
-    async fn node_num(graph: &Graph, src_type: &str) -> usize {
-        let cypher = format!("match (ps:{}) return count(ps) as num", src_type);
+    async fn node_num(graph: &Graph, node_label: NodeLabel) -> usize {
+        let cypher = format!("match (ps:{}) return count(ps) as num", node_label);
         let mut result = graph
             .execute(query(cypher.as_str()))
             .await
@@ -483,10 +482,10 @@ impl Kg {
         0
     }
 
-    async fn targ_num(graph: &Graph, src_type: &str, targ_type: &str) -> usize {
+    async fn targ_num(graph: &Graph, src_label: NodeLabel, targ_label: NodeLabel) -> usize {
         let cypher = format!(
             "match (ps:{})-[r]-> (pt:{}) return count(pt) as num",
-            src_type, targ_type
+            src_label, targ_label
         );
         let mut result = graph
             .execute(query(cypher.as_str()))
@@ -502,22 +501,22 @@ impl Kg {
         let graph = init_graph().await;
         // get node num
         let mut stats = vec![];
-        for src_type in &["Symptom", "Disease", "Check"] {
-            let mut s = Stats::new(src_type.to_string());
+        for src_label in [NodeLabel::Symptom, NodeLabel::Disease, NodeLabel::Check] {
+            let mut s = Stats::new(src_label);
 
-            let count = Self::node_num(&graph, src_type).await;
+            let count = Self::node_num(&graph, src_label).await;
             println!("{}", count);
             s.count = count;
 
-            for targ_type in &["Area", "Check", "Department", "Drug", "Disease", "Symptom"] {
-                let count = Self::targ_num(&graph, src_type, targ_type).await;
-                match *targ_type {
-                    "Area" => s.area = count,
-                    "Check" => s.check = count,
-                    "Department" => s.department = count,
-                    "Drug" => s.drug = count,
-                    "Disease" => s.disease = count,
-                    "Symptom" => s.symptom = count,
+            for targ_label in [NodeLabel::Area, NodeLabel::Check, NodeLabel::Department, NodeLabel::Drug, NodeLabel::Disease, NodeLabel::Symptom] {
+                let count = Self::targ_num(&graph, src_label, targ_label).await;
+                match targ_label {
+                    NodeLabel::Area => s.area = count,
+                    NodeLabel::Check => s.check = count,
+                    NodeLabel::Department => s.department = count,
+                    NodeLabel::Drug => s.drug = count,
+                    NodeLabel::Disease => s.disease = count,
+                    NodeLabel::Symptom => s.symptom = count,
                     _ => unreachable!(),
                 }
             }
@@ -535,52 +534,54 @@ impl Kg {
 
         // All nodes stat
         let graph = init_graph().await;
-        for src_type in &["Symptom", "Disease", "Check", "Area", "Department", "Drug"] {
-            let count = Self::node_num(&graph, src_type).await;
-            nodes_pie.push(Pie::new(src_type, count as f64));
+
+        // for src_type in &["Symptom", "Disease", "Check", "Area", "Department", "Drug"] {
+        for src_label in [NodeLabel::Area, NodeLabel::Check, NodeLabel::Department, NodeLabel::Drug, NodeLabel::Disease, NodeLabel::Symptom] {
+            let count = Self::node_num(&graph, src_label).await;
+            nodes_pie.push(Pie::new(src_label, count as f64));
         }
 
         // sym dis check Stat and aggr all rels
         for s in stats {
-            let name = s.type_name;
+            let node_label = s.label;
             // nodes_pie.push(Pie::new(name, s.count as f64));
-            let the_pie = match name.as_str() {
-                "Symptom" => &mut sym_pie,
-                "Disease" => &mut dis_pie,
-                "Check" => &mut check_pie,
+            let the_pie = match node_label {
+                NodeLabel::Symptom => &mut sym_pie,
+                NodeLabel::Disease => &mut dis_pie,
+                NodeLabel::Check => &mut check_pie,
                 _ => unreachable!(),
             };
             if s.area > 0 {
                 the_pie.push(Pie::new("Area", s.area as f64));
-                rels_pie.push(Pie::new(format!("{} > {}", name, "Area"), s.area as f64));
+                rels_pie.push(Pie::new(format!("{} > {}", node_label, "Area"), s.area as f64));
             }
 
             if s.check > 0 {
                 the_pie.push(Pie::new("Check", s.check as f64));
-                rels_pie.push(Pie::new(format!("{} > {}", name, "Check"), s.check as f64));
+                rels_pie.push(Pie::new(format!("{} > {}", node_label, "Check"), s.check as f64));
             }
             if s.department > 0 {
                 the_pie.push(Pie::new("Department", s.department as f64));
                 rels_pie.push(Pie::new(
-                    format!("{} > {}", name, "Department"),
+                    format!("{} > {}", node_label, "Department"),
                     s.department as f64,
                 ));
             }
             if s.drug > 0 {
                 the_pie.push(Pie::new("Drug", s.drug as f64));
-                rels_pie.push(Pie::new(format!("{} > {}", name, "Drug"), s.drug as f64));
+                rels_pie.push(Pie::new(format!("{} > {}", node_label, "Drug"), s.drug as f64));
             }
             if s.disease > 0 {
                 the_pie.push(Pie::new("Disease", s.disease as f64));
                 rels_pie.push(Pie::new(
-                    format!("{} > {}", name, "Disease"),
+                    format!("{} > {}", node_label, "Disease"),
                     s.disease as f64,
                 ));
             }
             if s.symptom > 0 {
                 the_pie.push(Pie::new("Symptom", s.symptom as f64));
                 rels_pie.push(Pie::new(
-                    format!("{} > {}", name, "Symptom"),
+                    format!("{} > {}", node_label, "Symptom"),
                     s.symptom as f64,
                 ));
             }
@@ -622,13 +623,6 @@ pub struct PieData {
 ///////////////////////////
 // api query / payload info
 ///////////////////////////
-#[derive(Deserialize, Debug)]
-pub struct NodeInfo {
-    // FIXME rename it to type
-    pub src_type: String,
-    pub name: String,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct IncreaseUpdateState {
     pub node_info: NodeInfo,
