@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 from utils import set_gpu, write_graph
 # from utils import embedding as utils_embedding
 
@@ -34,7 +35,7 @@ class AdaE(object):
         self.order = order
         self.reuse = reuse
 
-    def embedding_lookup(self):
+    def embedding_lookup(self, e1, rel):
         # [NE, E] - lookup -> [bs, E] -> [bs, E, 1]
         with tf.variable_scope("embedding_lookup"):
             self.emb_e = tf.get_variable(
@@ -47,12 +48,10 @@ class AdaE(object):
                 shape=[self.NR, self.E],
                 initializer=tf.glorot_uniform_initializer())
             e1_emb = tf.reshape(
-                tf.nn.embedding_lookup(self.emb_e,
-                                       self.e1,
-                                       name="e1_embedding"), [-1, self.E, 1])
+                tf.nn.embedding_lookup(self.emb_e, e1, name="e1_embedding"),
+                [-1, self.E, 1])
             rel_emb = tf.reshape(
-                tf.nn.embedding_lookup(self.emb_rel,
-                                       self.rel,
+                tf.nn.embedding_lookup(self.emb_rel, rel,
                                        name="rel_embedding"), [-1, self.E, 1])
             return e1_emb, rel_emb
 
@@ -80,7 +79,9 @@ class AdaE(object):
                 shape=[self.v_dim, 2 * self.E],
                 initializer=tf.glorot_normal_initializer())
 
-            A = tf.nn.softmax(tf.nn.relu(tf.matmul(self.v1, self.v2)), axis=1, name="ada_adj")
+            A = tf.nn.softmax(tf.nn.relu(tf.matmul(self.v1, self.v2)),
+                              axis=1,
+                              name="ada_adj")
         return A
 
     def e1_rel_gcn(self, e1_emb, rel_emb, A):
@@ -113,13 +114,13 @@ class AdaE(object):
             x = self.dp_last(self.bn_last(x))
         return x
 
-    def __call__(self):
+    def __call__(self, e1, rel):
         with tf.variable_scope("AdaE", reuse=self.reuse):
-            with tf.name_scope("input"):
-                self.e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
-                self.rel = tf.placeholder(tf.int64, shape=[None], name="rel")
+            # with tf.name_scope("input"):
+            #     self.e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
+            #     self.rel = tf.placeholder(tf.int64, shape=[None], name="rel")
 
-            e1_emb, rel_emb = self.embedding_lookup()
+            e1_emb, rel_emb = self.embedding_lookup(e1, rel)
             e1_emb, rel_emb = self.ic_emb(e1_emb, rel_emb)
             A = self.make_ada_adj()
             x = self.e1_rel_gcn(e1_emb, rel_emb, A)
@@ -221,20 +222,24 @@ def test_ada():
     NE = 22
     NR = 3
     C = 8
-    # N = 5
 
     ada = AdaE(NE, NR, C)
 
-    # with tf.variable_scope("input"):
-    #     x_e = tf.random_normal([B, C, 1], name="x_e")
-    #     x_rel = tf.random_normal([B, C, 1], name="x_rel")
-    #     A = tf.random_normal([2*C, 2*C], name="A")
+    with tf.name_scope("input"):
+        ph_rel = tf.placeholder(tf.int64, shape=[None], name="rel")
+        ph_e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
 
-    y = ada()
-
+    y = ada(ph_e1, ph_rel)
+    write_graph("AdaE")
     print(y)
 
-    write_graph("ada")
+    with tf.Session() as sess:
+        e1 = np.random.randint(0, NE, (B, ))
+        rel = np.random.randint(0, NR, (B, ))
+        sess.run(tf.global_variables_initializer())
+        y = sess.run(y, feed_dict={ph_e1: e1, ph_rel: rel})
+        print(y)
+        print(y.shape)
 
 
 if __name__ == "__main__":
