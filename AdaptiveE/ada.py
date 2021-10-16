@@ -18,7 +18,6 @@ class AdaE(object):
         inp_dp=0.2,
         hid_dp=0.2,
         last_dp=0.3,
-        use_seg_emb=False,
         order=2,
         reuse=None,
     ):
@@ -31,7 +30,6 @@ class AdaE(object):
         self.inp_dp = inp_dp
         self.hid_dp = hid_dp
         self.last_dp = last_dp
-        self.use_seg_emb = use_seg_emb
         self.order = order
         self.reuse = reuse
 
@@ -55,7 +53,7 @@ class AdaE(object):
                                        name="rel_embedding"), [-1, self.E, 1])
             return e1_emb, rel_emb
 
-    def ic_emb(self, e1_emb, rel_emb):
+    def ic_emb(self, e1_emb, rel_emb, training):
         with tf.variable_scope("ic_emb"):
             self.bn_e1 = tf.layers.BatchNormalization(axis=-1, name="bn_e1")
             self.dp_e1 = tf.layers.Dropout(rate=self.inp_dp, name="dp_e1")
@@ -63,8 +61,10 @@ class AdaE(object):
             self.bn_rel = tf.layers.BatchNormalization(axis=-1, name="bn_rel")
             self.dp_rel = tf.layers.Dropout(rate=self.inp_dp, name="dp_rel")
 
-            e1_emb = self.dp_e1(self.bn_e1(e1_emb))
-            rel_emb = self.dp_rel(self.bn_rel(rel_emb))
+            e1_emb = self.dp_e1(self.bn_e1(e1_emb, training=training),
+                                training=training)
+            rel_emb = self.dp_rel(self.bn_rel(rel_emb, training=training),
+                                  training=training)
             return e1_emb, rel_emb
 
     def make_ada_adj(self):
@@ -89,11 +89,12 @@ class AdaE(object):
         x = self.gcn(e1_emb, rel_emb, A)
         return x
 
-    def ic_hid(self, x):
+    def ic_hid(self, x, training):
         with tf.variable_scope("ic_hid"):
             self.bn_hid = tf.layers.BatchNormalization(axis=-1)
             self.dp_hid = tf.layers.Dropout(rate=self.hid_dp)
-            x = self.dp_hid(self.bn_hid(x))
+            x = self.dp_hid(self.bn_hid(x, training=training),
+                            training=training)
         return x
 
     def fc(self, x):
@@ -107,32 +108,29 @@ class AdaE(object):
             bias_initializer=tf.zeros_initializer(),
             name="fc")
 
-    def ic_last(self, x):
+    def ic_last(self, x, training):
         with tf.variable_scope("ic_last"):
             self.bn_last = tf.layers.BatchNormalization(axis=-1)
             self.dp_last = tf.layers.Dropout(rate=self.last_dp)
-            x = self.dp_last(self.bn_last(x))
+            x = self.dp_last(self.bn_last(x, training=training),
+                             training=training)
         return x
 
-    def __call__(self, e1, rel):
+    def __call__(self, e1, rel, training=False):
         with tf.variable_scope("AdaE", reuse=self.reuse):
-            # with tf.name_scope("input"):
-            #     self.e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
-            #     self.rel = tf.placeholder(tf.int64, shape=[None], name="rel")
-
             e1_emb, rel_emb = self.embedding_lookup(e1, rel)
-            e1_emb, rel_emb = self.ic_emb(e1_emb, rel_emb)
+            e1_emb, rel_emb = self.ic_emb(e1_emb, rel_emb, training)
             A = self.make_ada_adj()
             x = self.e1_rel_gcn(e1_emb, rel_emb, A)
 
             x = tf.nn.relu(x)
-            x = self.ic_hid(x)
+            x = self.ic_hid(x, training)
             x = tf.layers.flatten(x, name="flatten")  # b, 2E, C -> b,2E*C
 
             x = tf.nn.relu(x)
             x = self.fc(x)
 
-            x = self.ic_last(x)
+            x = self.ic_last(x, training)
             # bs E  E, N -> bs, N
             with tf.variable_scope("pred"):
                 x = tf.matmul(x, self.emb_e, transpose_b=True, name="mul_E")
@@ -228,8 +226,9 @@ def test_ada():
     with tf.name_scope("input"):
         ph_rel = tf.placeholder(tf.int64, shape=[None], name="rel")
         ph_e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
+        ph_training = tf.placeholder(tf.bool, name="training")
 
-    y = ada(ph_e1, ph_rel)
+    y = ada(ph_e1, ph_rel, ph_training)
     write_graph("AdaE")
     print(y)
 
@@ -237,7 +236,7 @@ def test_ada():
         e1 = np.random.randint(0, NE, (B, ))
         rel = np.random.randint(0, NR, (B, ))
         sess.run(tf.global_variables_initializer())
-        y = sess.run(y, feed_dict={ph_e1: e1, ph_rel: rel})
+        y = sess.run(y, feed_dict={ph_e1: e1, ph_rel: rel, ph_training: 1})
         print(y)
         print(y.shape)
 
