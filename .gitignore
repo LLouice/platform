@@ -26,3 +26,4 @@ server/static
 
 scripts
 tmp.sh
+/dump.rdb
