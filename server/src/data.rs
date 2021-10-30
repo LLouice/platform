@@ -4,6 +4,7 @@ use std::fmt::{Display, Formatter};
 
 use anyhow;
 use serde::{Deserialize, Serialize};
+use strum::EnumIter;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Node {
@@ -129,7 +130,7 @@ pub struct GraphDataD3 {
 
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, EnumIter)]
 pub enum NodeLabel {
     Symptom,
     Disease,
