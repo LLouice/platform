@@ -64,6 +64,35 @@
     - [[#debug][debug]]
 - [[#todolist][TodoList]]
 - [[#todo-2][Todo]]
+  - [[#machine-learning-model][machine learning model]]
+    - [[#read-all-triples-from-neo4j][read all triples from neo4j]]
+      - [[#cypher][cypher]]
+        - [[#all-triples][all triples]]
+        - [[#leaf-nodes][leaf nodes]]
+        - [[#constraint-1][constraint]]
+        - [[#delete-duplicate-nodes-and-their-relationships][delete duplicate nodes and their relationships]]
+        - [[#train-triple-data][train triple data]]
+      - [[#stats][stats]]
+        - [[#most-in-degree-node][most in degree node]]
+    - [[#get-most-connected-subgraph][get most connected subgraph]]
+    - [[#write-all-data-to-database-text-file][write all data to database? text file]]
+      - [[#cypher-1][cypher]]
+    - [[#cancel-large-graph-train][[CANCEL] large graph train]]
+      - [[#scalablegcn][ScalableGCN]]
+    - [[#export-to-rust][Export to rust]]
+      - [[#make-dataset-record-with-rust][make dataset record with rust]]
+        - [[#sparse-label][sparse label]]
+          - [[#make-label][make label]]
+      - [[#custom-record-in-pythontfdata-create-iterator-op][custom record in python(tf.data), create iterator op]]
+      - [[#split-train--valid--test-dataset-44][split train / valid / test dataset]]
+        - [[#no-repeat][no repeat]]
+        - [[#separate-tfrecord][separate tfrecord]]
+        - [[#inspect-graph][inspect graph]]
+        - [[#select-the-dh--1--dt--1-and-remake-the-train--test-label][select the D(h) > 1 && D(t) > 1 and remake the train / test label]]
+      - [[#define-eval-logicop-in-tensorflow-22][define eval logic(op) in tensorflow]]
+        - [[#define-val--test-dataset][define val / test dataset]]
+        - [[#eval-op][eval op]]
+- [[#train-data-and-label][Train data and label]]
 
 * Project
 ** libtorch
@@ -933,5 +962,147 @@
 - [ ] Echarts 文档通读
 - [ ] split the demo.html
 - [ ] modulize the demo.html
-- [ ] 词云
+- [x] 词云
 - [ ] 整理代码片段
+- [ ] split the network and stats
+** machine learning model
+*** TODO read all triples from neo4j
+**** cypher
+***** all triples
+#+begin_src cypher
+  match (x)-[r]->(y) return distinct head(labels(x)) as head, type(r), head(labels(y)) as tail limit 20
+  match (x)-[r]->(y) return distinct x as head, type(r), r as rname, y as tail limit 20
+#+end_src
+***** leaf nodes
+#+begin_src cypher
+  match (n)  where not (n)-->()  return distinct n
+  match () -->(t) with t, count(t) as ts where ts = 1  and not (t) --> () return t,ts
+#+end_src
+~head~ return the first element in a list
+***** constraint
+#+begin_src cypher
+  CREATE CONSTRAINT constraint_Symptom_name IF NOT EXISTS ON (s:Symptom) ASSERT s.name IS UNIQUE;
+  CREATE CONSTRAINT constraint_Disease_name IF NOT EXISTS ON (s:Disease) ASSERT s.name IS UNIQUE;
+  CREATE CONSTRAINT constraint_Drug_name IF NOT EXISTS ON (s:Drug) ASSERT s.name IS UNIQUE;
+  CREATE CONSTRAINT constraint_Department_name IF NOT EXISTS ON (s:Department) ASSERT s.name IS UNIQUE;
+  CREATE CONSTRAINT constraint_Check_name IF NOT EXISTS ON (s:Check) ASSERT s.name IS UNIQUE;
+  CREATE CONSTRAINT constraint_Area_name IF NOT EXISTS ON (a:Area) ASSERT a.name IS UNIQUE;
+#+end_src
+***** delete duplicate nodes and their relationships
+#+begin_src sh
+  MATCH (n:Symptom)
+  WITH n.name as name, collect(n) AS nodes
+  WHERE size(nodes) >  1
+  RETURN nodes
+#+end_src
+
+
+  MATCH (n:Symptom)
+  WITH n.name as name, collect(n) AS nodes
+  WHERE size(nodes) >  1
+  with head(nodes) as nn
+  return nn;
+
+  MATCH (n:Symptom)
+  WITH collect(n) AS nodes
+  WHERE size(nodes) >  1
+  WITH head(nodes) as n
+  return n;
+
+  MATCH (n:Symptom)
+  WITH n.name as name, collect(n) AS nodes
+  WHERE size(nodes) >  1
+  UNWIND tail(nodes) as n
+  return n;
+
+
+  MATCH (n:Symptom)
+  WITH n.name as name, collect(n) AS nodes
+  WHERE size(nodes) >  1
+  return nodes
+
+  MATCH (n:Area)
+  WITH n.name as name, collect(n) AS nodes
+  WHERE size(nodes) >  1
+  return nodes
+  
+  MATCH (g:Symptom)
+  WITH g.id as id, collect(g) AS nodes
+  WHERE size(nodes) >  1
+  FOREACH (g in tail(nodes) | DETACH DELETE g)
+
+  MATCH (g:Area)
+  WITH g.name as name, collect(g) AS nodes
+  WHERE size(nodes) >  1
+  FOREACH (g in tail(nodes) | DETACH DELETE g)
+
+
+
+  match () -->(t) with t, count(t) as ts where ts = 1  and not (t) --> () return t,ts
+  match () -->(t) with t, count(t) as ts where  not (t) --> () return t,ts
+***** train triple data
+#+begin_src cypher
+  match (h)-->(t) return t UNION match () -->(t) with t, count(t) as ts where ts = 1  and not (t) --> () return t;
+#+end_src
+
+
+**** stats
+- nodes number: 28754
+- triples number: 148686
+- leaf nodes: 7735
+- non-leaf triples: 140951
+***** most in degree node
+neo4j@neo4j> match (h) --> (n:Disease{name:"藏毛窦,藏毛病"}) return count(n);
++----------+
+| count(n) |
++----------+
+| 3046     |
++----------+
+*** get most connected subgraph
+*** TODO write all data to database? text file
+**** cypher
+#+begin_src cypher
+match (x) -[r]-> (y) return id(x), id(y), type(r) limit 30;
+#+end_src
+
+*** [CANCEL] large graph train
+**** ScalableGCN
+https://github.com/alibaba/euler/wiki/ScalableGCN
+ScalableGCN是一种由阿里妈妈提出的在大规模图上加速Mini-batch GCN训练速度方法。在Mini-batch GCN中，需要投入的计算力与GCN的层数成指数关系。
+并且，下层模型的训练频率显著的高于上层。ScalableGCN利用前向计算和反向计算的Cache，在 *mini-batch之间共享中间层表示的计算结果*，同时维护每个顶点上的异步梯度更新的通路。达到在与GCN层数成线性关系的时间内训练GCN模型的目的。
+*** Export to rust
+**** make dataset record with rust
+***** DONE sparse label
+CLOSED: [2021-10-18 一 23:06]
+****** DONE make label
+CLOSED: [2021-10-18 一 23:06]
+use ~tf.scatter_nd_update~
+**** DONE custom record in python(tf.data), create iterator op
+CLOSED: [2021-10-18 一 23:06]
+
+**** DONE split train / valid / test dataset [4/4]
+CLOSED: [2021-10-20 三 00:45]
+***** DONE no repeat
+CLOSED: [2021-10-20 三 00:45]
+***** DONE separate tfrecord
+CLOSED: [2021-10-20 三 00:45]
+***** DONE inspect graph
+CLOSED: [2021-10-19 二 02:34]
+***** DONE select the D(h) > 1 && D(t) > 1 and remake the train / test label
+CLOSED: [2021-10-20 三 00:45]
+
+**** DONE define eval logic(op) in tensorflow [2/2]
+CLOSED: [2021-10-21 四 02:54]
+***** DONE define val / test dataset
+CLOSED: [2021-10-21 四 02:54]
+***** DONE eval op
+CLOSED: [2021-10-21 四 02:54]
+
+* Train data and label
+(h,r): (t1,t2,t3,t4,t5)
+ =>
+train: (h,r): (t1,t2,t3)
+val: (h,r): (t4) also need (t1,t2,t3) for masked the prediction
+test: (h,r): (t5) also need (t1,t2,t3) for masked the prediction
+
+record <= hr_map_trn; hr_map_val; hr_map_test <- hr_map

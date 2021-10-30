@@ -1,5 +1,6 @@
 [build]
 target = "x86_64-unknown-linux-gnu"
+rustc-wrapper = "/home/llouice/.cargo/bin/sccache"
 
 [target.x86_64-unknown-linux-gnu]
 # linker = "/usr/bin/clang"

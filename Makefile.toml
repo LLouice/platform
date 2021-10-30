@@ -48,13 +48,13 @@ args = ["run", "--release", "--example", "inject_data"]
 [tasks.ck]
 extend = "sc"
 command = "mold"
-args = ['-run', 'cargo', 'check']
+args = ['--run', 'cargo', 'check']
 
 # build
 [tasks.b]
 extend = 'sc'
 command = 'mold'
-args = ['-run', 'cargo', 'build']
+args = ['--run', 'cargo', 'build']
 
 [tasks.b.env]
 CARGO_INCREMENT = 0
@@ -64,7 +64,7 @@ RUSTC_WRAPPER = '${SCCACHE}'
 [tasks.r]
 extend = 'sc'
 command = 'mold'
-args = ['-run', 'cargo', 'run']
+args = ['--run', 'cargo', 'run']
 
 [tasks.r.env]
 CARGO_INCREMENT = 0
@@ -74,7 +74,7 @@ RUSTC_WRAPPER = '${SCCACHE}'
 [tasks.rr]
 extend = 'sc'
 command = 'mold'
-args = ['-run', 'cargo', 'build', '--release']
+args = ['--run', 'cargo', 'build', '--release']
 
 [tasks.rr.env]
 CARGO_INCREMENT = 0
@@ -84,7 +84,7 @@ RUSTC_WRAPPER = '${SCCACHE}'
 [tasks.doc]
 extend = 'sc'
 command = 'mold'
-args = ['-run', 'cargo', 'doc']
+args = ['--run', 'cargo', 'doc']
 
 [tasks.doc.env]
 CARGO_INCREMENT = 0
@@ -93,7 +93,7 @@ RUSTC_WRAPPER = '${SCCACHE}'
 
 [tasks.mc]
 command = 'mold'
-args = ['-run', 'cargo', '${@}']
+args = ['--run', 'cargo', '${@}']
 
 [tasks.mc.env]
 CARGO_INCREMENT = 0

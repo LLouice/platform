@@ -1,5 +1,26 @@
 extend = "../Makefile.toml"
 
+
+
+[tasks.record]
+comand = "cargo"
+args = ["run", "--example", "graph", "-f" "graph.txt]
+
+
+[tasks."e.g."]
+extend = "mc"
+args = ["--run", "cargo", "run", "--example", "${@}"]
+
+
+# section bin
+[tasks.bin]
+extend = "mc"
+args = ["--run", "cargo", "run", "--bin", "${@}"]
+
+[tasks.bin.env]
+RUST_LOG = "debug"
+
+
 [tasks.r.env]
 RUST_LOG = "DEBUG"
 RUST_BACKTRACE = "1"
@@ -10,16 +31,16 @@ RUSTC_WRAPPER = '${SCCACHE}'
 [tasks.ck]
 extend = "sc"
 command = "mold"
-args = ['-run', 'cargo', 'check']
+args = ['--run', 'cargo', 'check']
 
 [tasks.watch]
 extend = "sc"
 command = "mold"
-args = ['-run', 'cargo', 'watch']
+args = ['--run', 'cargo', 'watch']
 
 
 [tasks.t]
 extend = "sc"
 command = "mold"
-args = ['-run', 'cargo', 'test', '--lib', '--', 'nocapture']
-#args = ['-run', 'cargo', 'test', '--', 'nocapture']
+args = ['--run', 'cargo', 'test', '--lib', '--', 'nocapture']
+#args = ['--run', 'cargo', 'test', '--', 'nocapture']
