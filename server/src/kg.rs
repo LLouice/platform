@@ -29,6 +29,7 @@ impl LinksResult {
 
 pub struct Kg;
 
+// section links
 impl Kg {
     // FIXME: eliminate the unwrap and expect
     pub async fn get_out_links(node_label: NodeLabel, name: &str) -> Vec<LinksResult> {
@@ -469,6 +470,7 @@ impl Stats {
     }
 }
 
+// section nodes
 impl Kg {
     async fn node_num(graph: &Graph, node_label: NodeLabel) -> usize {
         let cypher = format!("match (ps:{}) return count(ps) as num", node_label);
