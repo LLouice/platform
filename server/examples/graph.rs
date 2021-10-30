@@ -82,12 +82,9 @@ fn main() -> Result<()> {
         res = Some(Kg::load_from_file("graph_with_rev.txt"));
     } else if let Some(file) = matches.value_of("file") {
         res = Some(Kg::load_from_file(file));
-    }
-    else if matches.is_present("record") {
+    } else if matches.is_present("record") {
         Kg::gen_tfrecord()?;
-    }
-
-    else if matches.is_present("add_rev") {
+    } else if matches.is_present("add_rev") {
         log::info!("add_rev");
         graph_text::add_rev("graph_trn")?;
         graph_text::add_rev("graph_val")?;
@@ -352,14 +349,42 @@ impl Kg {
     // or
     ///  val: all edges -> hr_ts_map -> input: (h,r); label: ts; aux: (ts_all)
     pub fn gen_tfrecord() -> Result<()> {
+        log::info!("gen_tfrecord...");
         let [hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all] = Self::get_hr_ts_maps()?;
 
-        Self::map_to_tfrecord(hr_ts_map_trn, None, "symptom_trn.tfrecord")?;
-        Self::map_to_tfrecord(hr_ts_map_val, Some(&hr_ts_map_all), "symptom_val.tfrecord")?;
+        // num_ent
+        let get_ent_set = |map: &HRTsM| {
+            let mut ent_set: HashSet<i64> = HashSet::new();
+            for (&(h, _), ts) in map {
+                ent_set.insert(h);
+                for t in ts.clone() {
+                    ent_set.insert(t);
+                }
+            }
+            ent_set
+        };
+        let ent_set_trn = get_ent_set(&hr_ts_map_trn);
+        let ent_set_val = get_ent_set(&hr_ts_map_val);
+        let ent_set_test = get_ent_set(&hr_ts_map_test);
+        let ent_set_all = get_ent_set(&hr_ts_map_all);
+        assert!(ent_set_trn.is_superset(&ent_set_val));
+        assert!(ent_set_trn.is_superset(&ent_set_test));
+        assert!(ent_set_trn.is_superset(&ent_set_all));
+        assert!(ent_set_trn.is_subset(&ent_set_all));
+        let num_ent = ent_set_trn.len();
+
+        Self::map_to_tfrecord(hr_ts_map_trn, None, "symptom_trn.tfrecord", num_ent)?;
+        Self::map_to_tfrecord(
+            hr_ts_map_val,
+            Some(&hr_ts_map_all),
+            "symptom_val.tfrecord",
+            num_ent,
+        )?;
         Self::map_to_tfrecord(
             hr_ts_map_test,
             Some(&hr_ts_map_all),
             "symptom_test.tfrecord",
+            num_ent,
         )?;
         Ok(())
     }
@@ -368,7 +393,7 @@ impl Kg {
         map: HRTsM,
         map_all: Option<&HRTsM>,
         outfile: &str,
-        // full: Option<usize>,
+        num_ent: usize, // full: Option<usize>,
     ) -> Result<()> {
         let mut writer: ExampleWriter<_> = RecordWriterInit::create(outfile)?;
         let mut count = 0;
@@ -390,6 +415,7 @@ impl Kg {
             //     values
             // };
 
+            let num_ent_feature = Feature::Int64List(vec![num_ent as i64]);
             let labels = values;
             if let Some(map_all) = map_all {
                 let label_feature = Feature::Int64List(labels);
@@ -398,6 +424,7 @@ impl Kg {
                 let example = vec![
                     ("input".into(), input_feature),
                     ("label".into(), label_feature),
+                    ("num_ent".into(), num_ent_feature),
                     ("aux_label".into(), aux_feature),
                 ]
                 .into_iter()
@@ -411,6 +438,7 @@ impl Kg {
                 let example = vec![
                     ("input".into(), input_feature),
                     ("label".into(), label_feature),
+                    ("num_ent".into(), num_ent_feature),
                 ]
                 .into_iter()
                 .collect::<Example>();
