@@ -4,6 +4,10 @@ use clap::{App, Arg};
 use neo4rs::*;
 use strum::IntoEnumIterator;
 
+use std::collections::{BTreeSet, HashMap};
+use std::fs::OpenOptions;
+use std::path::PathBuf;
+
 use platform::data::NodeLabel;
 use platform::init_env_logger;
 use platform::neo4j::init_graph;
@@ -28,6 +32,18 @@ async fn main() {
                 .short('d')
                 .long("delete_dup")
                 .about("delete nodes"),
+        )
+        .arg(
+            Arg::new("write")
+                .short('w')
+                .about("export graph to text file"),
+        )
+        .arg(
+            Arg::new("file")
+                .short('f')
+                .long("file")
+                .default_value("graph.txt")
+                .about("export graph to text file"),
         );
     let mut help = Vec::new();
     app.write_help(&mut help).expect("error on write app help");
@@ -41,6 +57,14 @@ async fn main() {
         res = query_dup().await;
     } else if matches.is_present("delete_dup") {
         res = delete_dup().await;
+    } else if matches.is_present("write") {
+        if let Some(file) = matches.value_of("file") {
+            res = graph2file(file).await;
+        } else {
+            res = Ok(())
+        }
+    } else if let Some(file) = matches.value_of("file") {
+        res = graph2file(file).await;
     } else {
         res = Ok(());
         println!("{}", help);
@@ -187,4 +211,82 @@ async fn quick_query() -> Result<()> {
     Ok(())
 }
 
-fn todo() {}
+async fn graph2file<P: AsRef<std::path::Path>>(file: P) -> Result<()> {
+    use std::io::prelude::*;
+    use std::io::BufWriter;
+
+    let mut file = file.as_ref().to_owned();
+    let mut opt = OpenOptions::new();
+    if !file.is_absolute() {
+        let workspace_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        file = workspace_dir.join(file);
+    };
+
+    dbg!(&file);
+
+    // or use and_then
+    if let Some(prefix) = file.parent() {
+        std::fs::create_dir_all(prefix)?;
+    }
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(file)?;
+    let mut stream = BufWriter::new(file);
+
+    let graph = init_graph().await;
+    // let cypher = "match (x) -[r]-> (y) return id(x) as id_x, id(y) as id_y, type(r)  as r;";
+    let cypher = "match (x) -[r]-> (y) return head(labels(x)) as x_label, x.name as x, head(labels(y)) as y_label, y.name as y, type(r)  as r;";
+    log::debug!("{}", cypher);
+
+    let mut result = graph
+        .execute(query(cypher.as_ref()))
+        .await
+        .map_err(|_| anyhow!("error on execute cypher"))?;
+
+    let mut names_set = BTreeSet::new();
+    let mut triples = Vec::new();
+    while let Ok(Some(row)) = result.next().await {
+        // log::debug!("row is: {:#?}\n\n", row);
+        let x = row
+            .get::<String>("x")
+            .ok_or_else(|| anyhow!("no key `x` in row"))?;
+
+        let y = row
+            .get::<String>("y")
+            .ok_or_else(|| anyhow!("no key `y` in row"))?;
+
+        let x_label: String = row.get("x_label").ok_or_else(|| anyhow!("no key `x_label` in row"))?;
+        let y_label: String = row.get("y_label").ok_or_else(|| anyhow!("no key `y_label` in row"))?;
+
+        let r: String = row.get("r").ok_or_else(|| anyhow!("no key `r` in row"))?;
+
+        let x = format!("{}::{}",x_label, x);
+        let y = format!("{}::{}",y_label, y);
+        names_set.insert(x.clone());
+        names_set.insert(y.clone());
+        triples.push((x, y, r));
+    }
+    // generate map & dump
+    let id_name_map: HashMap<usize, String> = names_set.into_iter().enumerate().collect();
+    let name_id_map: HashMap<String, usize> = id_name_map.iter().map(|(k,v)| (v.clone(), k.clone())).collect();
+
+    // dump the map
+    let map_string = serde_json::to_string(&id_name_map)?;
+    std::fs::write("id_name_map.json", map_string)?;
+
+    let map_string = serde_json::to_string(&name_id_map)?;
+    std::fs::write("name_id_map.json", map_string)?;
+
+
+    // write graph.txt
+    for (x, y, r) in triples {
+        let id_x = name_id_map.get(&x).unwrap();
+        let id_y = name_id_map.get(&y).unwrap();
+        writeln!(stream, "{} {} {}", id_x, id_y, r)?;
+    }
+    stream.flush()?;
+    log::info!("finished!");
+    Ok(())
+}
