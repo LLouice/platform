@@ -1,0 +1,172 @@
+[config]
+default_to_workspace = false
+
+[env]
+MOLD = '/usr/bin/mold'
+SCCACHE = '/home/llouice/.cargo/bin/sccache'
+HDF5_DIR = '/home/llouice/Applications/anaconda3/envs/tch'
+NEO4J_DIR = '${CARGO_MAKE_WORKING_DIRECTORY}/neo4j/data'
+LIBTORCH = '${CARGO_MAKE_WORKING_DIRECTORY}/deps/libtorch'
+LD_LIBRARY_PATH = { script = ["echo ${LIBTORCH}/lib:$LD_LIBRARY_PATH"] }
+
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+
+
+# ini, init is cargo-make default task name
+# due to inputing sudo password, no parallel here
+[tasks.ini]
+#run_task = { name = ["init_neo4j", "inc_fs_notify", "redis"], fork = true }
+run_task = { name = ["init_neo4j", "redis"], fork = true }
+
+
+# redis
+[tasks.redis]
+command = "redis-server"
+
+# database
+[tasks.init_neo4j]
+ignore_errors = true
+script = '''
+  docker run \
+        -d \
+        --publish=7474:7474 --publish=7687:7687 \
+        --volume=${NEO4J_DIR}:/data \
+        -e NEO4J_AUTH=neo4j/symptom \
+        neo4j
+'''
+dependencies = ['start_docker']
+
+[tasks.start_docker]
+script = 'sudo systemctl start docker'
+
+[tasks.inject]
+command = "cargo"
+# args = ["run", "--release", "--example", "inject_data", "-p", "server"]
+args = ["run", "--release", "--example", "inject_data"]
+
+# check
+[tasks.ck]
+extend = "sc"
+command = "mold"
+args = ['--run', 'cargo', 'check']
+
+# build
+[tasks.b]
+extend = 'sc'
+command = 'mold'
+args = ['--run', 'cargo', 'build']
+
+[tasks.b.env]
+CARGO_INCREMENT = 0
+RUSTC_WRAPPER = '${SCCACHE}'
+
+
+[tasks.r]
+extend = 'sc'
+command = 'mold'
+args = ['--run', 'cargo', 'run']
+
+[tasks.r.env]
+CARGO_INCREMENT = 0
+RUSTC_WRAPPER = '${SCCACHE}'
+
+
+[tasks.rr]
+extend = 'sc'
+command = 'mold'
+args = ['--run', 'cargo', 'build', '--release']
+
+[tasks.rr.env]
+CARGO_INCREMENT = 0
+RUSTC_WRAPPER = '${SCCACHE}'
+
+
+[tasks.doc]
+extend = 'sc'
+command = 'mold'
+args = ['--run', 'cargo', 'doc']
+
+[tasks.doc.env]
+CARGO_INCREMENT = 0
+RUSTC_WRAPPER = '${SCCACHE}'
+
+
+[tasks.mc]
+command = 'mold'
+args = ['--run', 'cargo', '${@}']
+
+[tasks.mc.env]
+CARGO_INCREMENT = 0
+RUSTC_WRAPPER = '${SCCACHE}'
+
+
+[tasks.sc]
+extend = 'cargo'
+
+[tasks.sc.env]
+CARGO_INCREMENT = 0
+RUSTC_WRAPPER = '${SCCACHE}'
+# HDF5_DIR = '${HDF5_DIR}'
+# RUSTFLAGS = [
+  # '-Clink-args=-Wl,-rpath,${HDF5_DIR}/lib',
+  # '-Ctarget-cpu=native',
+  # '-Zshare-generics=y',
+# ]
+
+
+[tasks.cargo]
+command = "cargo"
+description = "raw cargo"
+args = ["${@}"]
+
+# libtorch
+[tasks.libtorch]
+script = '''
+cd deps
+wget https://download.pytorch.org/libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip
+unzip libtorch-shared-with-deps-latest.zip
+'''
+
+
+[tasks.env]
+script = '''
+    echo "export LIBTORCH=${LIBTORCH}"
+    echo "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
+'''
+
+
+# front
+[tasks.fr]
+command = "trunk"
+args = ["serve"]
+# args = ["serve", "--port=9091"]
+#dependencies = ["inc_fs_notify"]
+
+[tasks.fr.env]
+CARGO_INCREMENT = 0
+RUSTC_WRAPPER = '${SCCACHE}'
+
+[tasks.inc_fs_notify]
+script = "sudo sysctl fs.inotify.max_user_watches=32768"
+
+
+[tasks.cl]
+ignore_errors = true
+script = '''
+  #!/usr/bin/env bash
+  # /home/llouice/bin/pk rust-analyzer > /dev/null 2>&1
+  rm -rf target/debug
+  rm -rf target/release
+  rm -rf target/x86_64-unknown-linux-gnu
+  rm -rf target/wasm-bindgen
+  rm -rf target/wasm32-unknown-unknown
+'''
+
+[tasks.t]
+extend = "sc"
+command = "mold"
+args = ['-run', 'cargo', 'test', '-p', 'platform', '--lib', '--', 'nocapture']
+
+# test
+[tasks.dbg]
+script = "echo ${LD_LIBRARY_PATH}"

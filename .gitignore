@@ -27,3 +27,5 @@ server/static
 scripts
 tmp.sh
 /dump.rdb
+server/symptom_full.old.tfrecord
+*.gz
