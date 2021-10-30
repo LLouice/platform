@@ -137,7 +137,7 @@ class AdaE(object):
                 self.b = tf.get_variable('bias',
                                          shape=[self.NE],
                                          initializer=tf.zeros_initializer())
-                x = tf.add(x, self.b, name="out_prob")
+                x = tf.add(x, self.b, name="logits")
             return x
 
 
@@ -241,5 +241,125 @@ def test_ada():
         print(y.shape)
 
 
+class AdaExport(object):
+    def __init__(self, NE, NR, C, output_dir="export"):
+        super().__init__()
+        self.NE = NE
+        self.NR = NR
+        self.C = C
+        self.output_dir = output_dir
+
+    def build(self):
+        self._build_input_placeholder()
+        self._build_forward()
+        self._build_loss()
+        self._build_optimizer()
+        self._build_summary()
+        self._build_train()
+        self._build_input_data()
+
+    def _build_input_placeholder(self):
+        with tf.name_scope("input"):
+            self.e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
+            self.rel = tf.placeholder(tf.int64, shape=[None], name="rel")
+            self.training = tf.placeholder(tf.bool, name="training")
+            self.labels = tf.placeholder(tf.float32, [None, self.NE],
+                                         name='label')
+
+    def _build_input_data(self):
+        dataset = tf.data.TFRecordDataset("symptom.tfrecord",
+                                          num_parallel_reads=8)
+
+        # Create a description of the features.
+        feature_description = {
+            'input':
+            tf.io.FixedLenSequenceFeature([],
+                                          tf.int64,
+                                          default_value=0,
+                                          allow_missing=True),
+            'label':
+            tf.io.FixedLenSequenceFeature([],
+                                          tf.int64,
+                                          default_value=0,
+                                          allow_missing=True),
+        }
+
+        def _parse_function(example_proto):
+            # Parse the input `tf.train.Example` proto using the dictionary above.
+            return tf.io.parse_single_example(example_proto,
+                                              feature_description)
+
+        def _transform(d):
+            # TODO: fixed this num_ent in tfrecord
+            num_ent = 28754
+            with tf.name_scope("transform"):
+                zeros = tf.Variable(lambda: tf.zeros(num_ent), name="zeros")
+                label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
+                d["label"] = tf.scatter_nd_update(
+                    zeros, label, tf.ones_like(label, dtype=tf.float32))
+                return d
+
+        dataset = dataset.map(_parse_function).map(_transform)
+
+        iterator = dataset.shuffle(30000).repeat(10).batch(4).prefetch(
+            4).make_initializable_iterator()
+
+        with tf.name_scope("batch_data"):
+            self.batch_data = iterator.get_next("get_next")
+
+    def _build_forward(self):
+        ada = AdaE(self.NE, self.NR, self.C)
+        self.logits = ada(self.e1, self.rel, self.training)
+
+    def _build_loss(self):
+        with tf.name_scope('loss'):
+            self.loss = tf.reduce_sum(tf.losses.sigmoid_cross_entropy_with_logits(
+                labels=self.labels, logits=self.logits, label_smoothing=0.1),
+                                      name="loss")
+
+    def _build_optimizer(self):
+        with tf.name_scope('optimizer'):
+            self.global_step = tf.Variable(0,
+                                           dtype=tf.int32,
+                                           trainable=False,
+                                           name='global_step')
+            self.lr = tf.placeholder_with_default(0.001, [], name='lr')
+            self.optimize = tf.train.AdamOptimizer(self.lr).minimize(
+                self.loss, self.global_step, name="optimize")
+
+    def _build_summary(self):
+        with tf.name_scope('summaries'):
+            tf.summary.scalar('loss', self.loss)
+            tf.summary.histogram('histogram loss', self.loss)
+            # because you have several summaries, we should merge them all
+            # into one op to make it easier to manage
+            self.summary_op = tf.summary.merge_all(name="summary_op")
+
+    def _build_train(self):
+        self.init = tf.variables_initializer(tf.global_variables(),
+                                             name='init')
+        self.saver = tf.train.Saver(tf.global_variables())
+
+    def export(self):
+        self.build()
+
+        definition = tf.Session().graph_def
+        tf.io.write_graph(definition,
+                          self.output_dir,
+                          'model_txt.pb',
+                          as_text=True)
+        write_graph("AdaExport")
+
+
+def export():
+    NE = 22
+    NR = 3
+    C = 8
+    ada_export = AdaExport(NE, NR, C)
+    ada_export.export()
+
+
 if __name__ == "__main__":
-    test()
+    # test()
+    # tf.reset_default_graph()
+    export()
