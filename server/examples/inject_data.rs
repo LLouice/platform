@@ -197,15 +197,18 @@ async fn inject_data3(
     // txn.commit().await?;
 
     // Constriant
+    /*
     {
         let _lock = lock.lock().await;
         let txn = graph.start_txn().await?;
         let cypher_head = format!(
-            "CREATE CONSTRAINT IF NOT EXISTS ON (s:{}) ASSERT s.name IS UNIQUE;",
+            "CREATE CONSTRAINT constraint_{}_name IF NOT EXISTS ON (s:{}) ASSERT s.name IS UNIQUE;",
+            head,
             head
         );
         let cypher_tail = format!(
-            "CREATE CONSTRAINT IF NOT EXISTS ON (s:{}) ASSERT s.name IS UNIQUE;",
+            "CREATE CONSTRAINT constraint_{}_name IF NOT EXISTS ON (s:{}) ASSERT s.name IS UNIQUE;",
+            tail,
             tail
         );
         txn.run_queries(vec![
@@ -215,6 +218,7 @@ async fn inject_data3(
         .await;
         txn.commit().await;
     }
+    */
 
     let graph = Arc::new(graph);
     let filename = format!("data/chinese_symptom/all_result/split/{}.txt", filename);
@@ -349,8 +353,31 @@ async fn inject_check() -> Result<()> {
     Ok(())
 }
 
+async fn create_constraints() -> Result<()> {
+    let graph = init_graph().await;
+    let txn = graph.start_txn().await?;
+    let cyphers = [
+        "CREATE CONSTRAINT constraint_Symptom_name IF NOT EXISTS ON (s:Symptom) ASSERT s.name IS UNIQUE;",
+        "CREATE CONSTRAINT constraint_Disease_name IF NOT EXISTS ON (s:Disease) ASSERT s.name IS UNIQUE;",
+        "CREATE CONSTRAINT constraint_Drug_name IF NOT EXISTS ON (s:Drug) ASSERT s.name IS UNIQUE;",
+        "CREATE CONSTRAINT constraint_Department_name IF NOT EXISTS ON (s:Department) ASSERT s.name IS UNIQUE;",
+         "CREATE CONSTRAINT constraint_Check_name IF NOT EXISTS ON (s:Check) ASSERT s.name IS UNIQUE;",
+        "CREATE CONSTRAINT constraint_Area_name IF NOT EXISTS ON (a:Area) ASSERT a.name IS UNIQUE;"
+    ];
+    txn.run_queries(cyphers.map(query).to_vec()).await;
+    txn.commit().await;
+
+    Ok(())
+}
+
 /// inject all Symptom relations but Symptom itself
 async fn inject3() -> Result<()> {
+    // create all constraints first;
+    create_constraints()
+        .await
+        .map_err(|e| {eprintln!("{:#?}", e); e})
+        .expect("failed to create constraints");
+
     let mut tasks = FuturesUnordered::new();
 
     let lock = Arc::new(Mutex::new(()));
