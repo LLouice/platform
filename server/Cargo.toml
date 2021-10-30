@@ -40,6 +40,15 @@ anyhow = "1.0"
 urlencoding = "2.1.0"
 strum = { version = "0.21", features = ["derive"] }
 
+[dev-dependencies]
+# delegate = "0.6.1"
+graph = "0.1.5"
+indexmap = "1.7.0"
+rayon = "1.5.1"
+tfrecord = { git = "https://github.com/jerry73204/rust-tfrecord.git" }
+statrs = "0.15"
+num_enum = "0.5"
+
 
 # [dev.dependencies]
 # hdf5 = { git = "https://github.com/llouice/hdf5-rust.git", branch = "attrs" }

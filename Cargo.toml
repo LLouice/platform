@@ -3,6 +3,7 @@
 members = [
     "server",
     "frontend",
+    # "AdaptiveE/ada-rs",
 ]
 
 [profile.release]
