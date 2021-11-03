@@ -4,7 +4,6 @@ import tensorflow as tf
 from tensorflow.python import debug as tfdbg
 from utils import set_gpu, write_graph, scatter_update_tensor
 
-import sys
 import time
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
