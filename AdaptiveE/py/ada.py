@@ -257,23 +257,16 @@ class AdaExport(object):
                  NE,
                  NR,
                  C,
-                 epochs,
-                 batch_size_trn=4,
-                 batch_size_dev=8,
                  output_dir="export"):
         super().__init__()
         self.NE = NE
         self.NR = NR
         self.C = C
 
-        self.epochs = epochs
-
-        self.batch_size_trn = batch_size_trn
-        self.batch_size_dev = batch_size_dev
-
         self.output_dir = output_dir
 
     def build(self):
+        self._build_ph()
         self._build_train()
         self._build_summary()
         # must be the last
@@ -283,12 +276,19 @@ class AdaExport(object):
         self.init = tf.variables_initializer(tf.global_variables(),
                                              name='init')
 
+    def _build_ph(self):
+        with tf.name_scope("custom"):
+            self.batch_size_trn = tf.placeholder(tf.int64, (), "batch_size_trn")
+            self.batch_size_dev = tf.placeholder(tf.int64, (), "batch_size_dev")
+            self.repeat = tf.placeholder(tf.int64, (), "repeat")
+            self.lr = tf.placeholder_with_default(0.001, (), "lr")
+
     def _build_train(self):
         with tf.name_scope("data_trn"):
             _iterator_trn, batch_data_trn = self._build_train_dataset(
-                self.epochs, batch_size=self.batch_size_trn)
+                self.repeat, batch_size=self.batch_size_trn)
             inp_trn = batch_data_trn["input"]
-            inp_trn.set_shape((self.batch_size_trn, 2))
+            inp_trn.set_shape((None, 2))
             label_trn = batch_data_trn["label"]
             e1_trn, rel_trn = tf.unstack(inp_trn, axis=1)
 
@@ -301,7 +301,7 @@ class AdaExport(object):
             _iterator_val, batch_data_val = self._build_dev_dataset(
                 dev="val", batch_size=self.batch_size_dev)
             inp_val = batch_data_val["input"]
-            inp_val.set_shape((self.batch_size_dev, 2))
+            inp_val.set_shape((None, 2))
             label_val = batch_data_val["label"]
             aux_label_val = batch_data_val["aux_label"]
             e1_val, rel_val = tf.unstack(inp_val, axis=1)
@@ -318,7 +318,7 @@ class AdaExport(object):
             _iterator_test, batch_data_test = self._build_dev_dataset(
                 dev="test", batch_size=self.batch_size_dev)
             inp_test = batch_data_test["input"]
-            inp_test.set_shape((self.batch_size_dev, 2))
+            inp_test.set_shape((None, 2))
             label_test = batch_data_test["label"]
             aux_label_test = batch_data_test["aux_label"]
             e1_test, rel_test = tf.unstack(inp_test, axis=1)
@@ -374,8 +374,8 @@ class AdaExport(object):
 
             dataset_trn = dataset_trn.map(_parse_function_trn).map(_transform)
 
-            iterator_trn = dataset_trn.shuffle(30000).repeat(repeat_num).batch(
-                batch_size).prefetch(batch_size).make_initializable_iterator()
+            iterator_trn = dataset_trn.shuffle(50000).repeat(repeat_num).batch(
+                batch_size, drop_remainder=True).prefetch(batch_size).make_initializable_iterator()
             # iterator = dataset.shuffle(30000).repeat(10).batch(4).prefetch(4).make_one_shot_iterator()
             batch_data_trn = iterator_trn.get_next("get_next")
         return iterator_trn, batch_data_trn
@@ -436,7 +436,7 @@ class AdaExport(object):
 
             dataset_dev = dataset_dev.map(_parse_function_dev).map(_transform)
 
-            iterator_dev = dataset_dev.batch(batch_size).prefetch(
+            iterator_dev = dataset_dev.batch(batch_size, drop_remainder=True).prefetch(
                 batch_size).make_initializable_iterator()
             batch_data_dev = iterator_dev.get_next("get_next")
         return iterator_dev, batch_data_dev
@@ -469,7 +469,7 @@ class AdaExport(object):
                                            dtype=tf.int64,
                                            trainable=False,
                                            name='global_step')
-            self.lr = tf.placeholder_with_default(0.001, [], name='lr')
+            # self.lr = tf.placeholder_with_default(0.001, [], name='lr')
             self.optimize = tf.train.AdamOptimizer(self.lr).minimize(
                 self.loss, self.global_step, name="optimize")
 
@@ -512,10 +512,10 @@ class AdaExport(object):
                 score = scores[i]
                 label = labels[i][0]  #[0] for ragged extra axis
 
-                print_op = tf.print("===\n", i, label)
+                # print_op = tf.print("===\n", i, label)
 
-                with tf.control_dependencies([print_op]):
-                    row_len = tf.cast(tf.shape(label)[0], tf.int64)
+                # with tf.control_dependencies([print_op]):
+                row_len = tf.cast(tf.shape(label)[0], tf.int64)
 
                 def cond_inner(j, i, row_len, arr_idx, pred, score, label,
                                ranks):
@@ -527,27 +527,28 @@ class AdaExport(object):
                     l = label[j]
                     # pick out cur position
                     p = pred[l]
-                    op3 = tf.print("p shape: ", tf.shape(p))
-                    op4 = tf.print("p : ", p, "\n", "label: ", label, "l: ", l)
-                    # race?
-                    print_op = tf.print("score1", score)
-                    with tf.control_dependencies([print_op, op3, op4]):
-                        indices = tf.cast(tf.broadcast_to(l, [1, 1]), tf.int32)
-                        score_l = scatter_update_tensor(score, indices, [p])
+                    # op3 = tf.print("p shape: ", tf.shape(p))
+                    # op4 = tf.print("p : ", p, "\n", "label: ", label, "l: ", l)
+                    # # race?
+                    # print_op = tf.print("score1", score)
 
-                    print_op = tf.print("score2", score_l)
+                    # with tf.control_dependencies([print_op, op3, op4]):
+                    indices = tf.cast(tf.broadcast_to(l, [1, 1]), tf.int32)
+                    score_l = scatter_update_tensor(score, indices, [p])
 
-                    with tf.control_dependencies([print_op]):
-                        sorted_idx = tf.argsort(score_l,
-                                                direction="DESCENDING")
-                        print_op = tf.print("sorted_idx", sorted_idx)
+                    # print_op = tf.print("score2", score_l)
 
-                    with tf.control_dependencies([print_op]):
-                        rank = tf.add(tf.argsort(sorted_idx)[l], 1)
-                        print_rank = tf.print("==== rank ===: ", rank)
+                    # with tf.control_dependencies([print_op]):
+                    sorted_idx = tf.argsort(score_l,
+                                            direction="DESCENDING")
+                        # print_op = tf.print("sorted_idx", sorted_idx)
 
-                    with tf.control_dependencies([print_rank]):
-                        ranks = ranks.write(tf.cast(arr_idx, tf.int32), rank)
+                    # with tf.control_dependencies([print_op]):
+                    rank = tf.add(tf.argsort(sorted_idx)[l], 1)
+                        # print_rank = tf.print("==== rank ===: ", rank)
+
+                    # with tf.control_dependencies([print_rank]):
+                    ranks = ranks.write(tf.cast(arr_idx, tf.int32), rank)
 
                     return (tf.add(j, 1), i, row_len, tf.add(arr_idx, 1), pred,
                             score, label, ranks)
@@ -591,7 +592,9 @@ class AdaExport(object):
                 tf.zeros_like(ranks_tensor, dtype=tf.float32)),
                                     name=f"hits10_{name_suffix}")
 
-        return preds, scores, ranks_tensor, rank, hits1, hits3, hits10
+            eval_op = tf.group(rank, hits1, hits3, hits10, name=f"eval_op_{name_suffix}")
+
+        return preds, scores, ranks_tensor, rank, hits1, hits3, hits10, eval_op
 
     def export(self):
         self.build()
@@ -613,7 +616,7 @@ def export():
     NE = 28754
     NR = 10
     C = 8
-    ada_export = AdaExport(NE, NR, C, 300)
+    ada_export = AdaExport(NE, NR, C)
     ada_export.export()
 
 
