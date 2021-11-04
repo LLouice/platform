@@ -70,6 +70,7 @@ fn main() -> Result<()> {
                 .long("debug")
                 .about("debug / inspect the graph"),
         )
+        .arg(Arg::new("size").long("size").about("dataset size"))
         .arg(Arg::new("ex").short('e').long("ex").about("do experiment"));
     let mut help = Vec::new();
     app.write_help(&mut help).expect("error on write app help");
@@ -89,6 +90,8 @@ fn main() -> Result<()> {
         graph_text::add_rev("graph_trn")?;
         graph_text::add_rev("graph_val")?;
         graph_text::add_rev("graph_test")?;
+    } else if matches.is_present("size") {
+        Kg::dataset_size()?;
     } else if matches.is_present("ex") {
         lab::ex();
     } else {
@@ -142,6 +145,16 @@ impl Kg {
         Ok(Self {
             inner: load_graph(file)?,
         })
+    }
+
+    fn dataset_size() -> Result<()> {
+        let [hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all] = Self::get_hr_ts_maps()?;
+
+        println!("train_size: {}", hr_ts_map_trn.len());
+        println!("val_size: {}", hr_ts_map_val.len());
+        println!("test_size: {}", hr_ts_map_test.len());
+        println!("all_size: {}", hr_ts_map_all.len());
+        Ok(())
     }
 
     pub fn split_dataset(&self) -> Result<()> {
