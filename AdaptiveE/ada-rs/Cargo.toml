@@ -10,6 +10,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.44"
-pyo3 = { version = "0.14.5", features = ["auto-initialize"] }
+# pyo3 = { version = "0.14.5", features = ["auto-initialize"] }
 random = "0.12.2"
+tensorboard-rs = "0.2.4"
 tensorflow = { version = "0.16.1", features = ["tensorflow_gpu"] }

@@ -466,7 +466,7 @@ class AdaExport(object):
     def _build_optimizer(self):
         with tf.name_scope('optimizer'):
             self.global_step = tf.Variable(0,
-                                           dtype=tf.int32,
+                                           dtype=tf.int64,
                                            trainable=False,
                                            name='global_step')
             self.lr = tf.placeholder_with_default(0.001, [], name='lr')

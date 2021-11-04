@@ -9,11 +9,16 @@ use std::path::Path;
 use tensorflow::Code;
 use tensorflow::Graph;
 use tensorflow::ImportGraphDefOptions;
+use tensorflow::Output;
+use tensorflow::Scope;
 use tensorflow::Session;
 use tensorflow::SessionOptions;
 use tensorflow::SessionRunArgs;
 use tensorflow::Status;
 use tensorflow::Tensor;
+// use tensorflow::TensorType;
+use tensorboard_rs::summary_writer::{FileWriter, SummaryWriter};
+use tensorflow::ops::{self, create_summary_file_writer, summary_writer, write_summary};
 
 #[cfg_attr(feature = "examples_system_alloc", global_allocator)]
 #[cfg(feature = "examples_system_alloc")]
@@ -24,16 +29,19 @@ fn main() -> Result<()> {
 }
 
 fn run() -> Result<()> {
-    let filename = "examples/regression_checkpoint/model.pb"; // y = w * x + b
-    if !Path::new(filename).exists() {
+    let workspace_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let filename = dbg!(workspace_dir.parent().unwrap()).join("export/model.pb");
+    dbg!(&filename);
+    if !filename.exists() {
         bail!(format!(
-            "Run 'python regression_checkpoint.py' to generate \
+            "Run 'python ada.py' to generate \
                      {} and try again.",
-            filename
+            filename.display()
         ));
     }
 
     // Generate some test data.
+    /*
     let w = 0.1;
     let b = 0.3;
     let num_points = 100;
@@ -45,6 +53,7 @@ fn run() -> Result<()> {
         x[i] = (2.0 * rand.read::<f64>() - 1.0) as f32;
         y[i] = w * x[i] + b;
     }
+    */
 
     // Load the computation graph defined by regression.py.
     let mut graph = Graph::new();
@@ -53,38 +62,97 @@ fn run() -> Result<()> {
     graph.import_graph_def(&proto, &ImportGraphDefOptions::new())?;
 
     // session option
-    let config_proto = include_bytes!("config.proto");
-    eprintln!("config_proto: {:?}", config_proto);
+    let config_proto = include_bytes!("../assets/config.proto");
+    // eprintln!("config_proto: {:?}", config_proto);
     let mut sess_opt = SessionOptions::new();
     sess_opt.set_config(config_proto.as_slice())?;
     let session = Session::new(&sess_opt, &graph)?;
 
     // get op from graph_def
-    let op_x = graph.operation_by_name_required("x")?;
-    let op_y = graph.operation_by_name_required("y")?;
+    // the ops
+    // init / op_optimize / op_file_path / op_save / op_summary
+
     let op_init = graph.operation_by_name_required("init")?;
-    let op_train = graph.operation_by_name_required("train")?;
-    let op_w = graph.operation_by_name_required("w")?;
-    let op_b = graph.operation_by_name_required("b")?;
+    let op_batch_data_trn_init =
+        graph.operation_by_name_required("data_trn/dataset_trn/MakeIterator")?;
+    let op_batch_data_trn = graph.operation_by_name_required("data_trn/dataset_trn/get_next")?;
+
+    let op_trn_record_path = graph.operation_by_name_required("data_trn/dataset_trn/Const")?;
+    // based on current dir
+    let trn_record_path: Tensor<String> = Tensor::from(String::from("assets/symptom_trn.tfrecord"));
+
+    let op_optimize = graph.operation_by_name_required("optimizer/optimize")?;
+    let op_global_step = graph.operation_by_name_required("optimizer/global_step")?;
+    let op_loss = graph.operation_by_name_required("loss/loss")?;
+
     let op_file_path = graph.operation_by_name_required("save/Const")?;
     let op_save = graph.operation_by_name_required("save/control_dependency")?;
-    let file_path_tensor: Tensor<String> =
-        Tensor::from(String::from("examples/regression_checkpoint/saved.ckpt"));
+    let file_path_tensor: Tensor<String> = Tensor::from(String::from("checkpoints/saved.ckpt"));
+
+    let op_summary = graph.operation_by_name_required("summaries/summary_op/summary_op")?;
 
     // Load the test data into the session.
     let mut init_step = SessionRunArgs::new();
     init_step.add_target(&op_init);
+    init_step.add_feed(&op_trn_record_path, 0, &trn_record_path);
+    init_step.add_target(&op_batch_data_trn_init);
     session.run(&mut init_step)?;
 
-    // Train the model.
-    let mut train_step = SessionRunArgs::new();
-    train_step.add_feed(&op_x, 0, &x);
-    train_step.add_feed(&op_y, 0, &y);
-    train_step.add_target(&op_train);
-    for _ in 0..steps {
-        session.run(&mut train_step)?;
-    }
+    // inspect the batch data
+    let data_closure = || -> Result<()> {
+        let mut inspect_data_step = SessionRunArgs::new();
+        // inspect_data_step.add_target(&op_batch_data_trn_init);
+        let batch_data_ix = inspect_data_step.request_fetch(&op_batch_data_trn, 0);
 
+        for _ in 0..3 {
+            session.run(&mut inspect_data_step)?;
+            let batch_data: Tensor<i64> = inspect_data_step.fetch(batch_data_ix)?;
+            // eprintln!("batch_data:\n\t{:?}", batch_data);
+            eprintln!("batch_data:\n\t{}", batch_data);
+        }
+        Ok(())
+    };
+    // data_closure()?;
+
+    // Train the model.
+    let train_closure = || -> Result<()> {
+        let epochs = 1;
+        let mut train_step = SessionRunArgs::new();
+        // train_step.add_feed(&op_x, 0, &x);
+        // train_step.add_feed(&op_y, 0, &y);
+        let loss_ix = train_step.request_fetch(&op_loss, 0);
+
+        train_step.add_target(&op_optimize);
+        for _ in 0..epochs {
+            session.run(&mut train_step)?;
+            let loss: Tensor<f64> = train_step.fetch(loss_ix)?;
+            // eprintln!("batch_data:\n\t{:?}", batch_data);
+            eprintln!("loss:\n\t{}", loss);
+        }
+        Ok(())
+    };
+    // train_closure()?;
+
+    let mut writer = SummaryWriter::new(&("./logs/first".to_string()));
+
+    let epochs = 10;
+    let mut train_step = SessionRunArgs::new();
+    let loss_token = train_step.request_fetch(&op_loss, 0);
+    let global_step_token = train_step.request_fetch(&op_global_step, 0);
+    // let summay_token = train_step.request_fetch(&op_summay, 0);
+    train_step.add_target(&op_optimize);
+
+    for _ in 0..epochs {
+        session.run(&mut train_step)?;
+        let loss: f32 = train_step.fetch(loss_token)?[0];
+        eprintln!("loss:\n\t{}", loss);
+        let global_step: i64 = train_step.fetch(global_step_token)?[0];
+        // let summay: Tensor<String> = train_step.fetch(loss_token)?;
+        writer.add_scalar("loss", loss, global_step as usize);
+    }
+    writer.flush();
+
+    /*
     // Save the model.
     let mut step = SessionRunArgs::new();
     step.add_feed(&op_file_path, 0, &file_path_tensor);
@@ -130,49 +198,6 @@ fn run() -> Result<()> {
             "FAIL"
         }
     );
+    */
     Ok(())
 }
-
-/*
-mod py {
-    use pyo3::types::PyList;
-    use pyo3::{
-        prelude::*,
-        types::{IntoPyDict, PyModule},
-    };
-
-    fn register_path<P: AsRef<std::path::Path>>(py: Python, path: P) -> PyResult<()> {
-        let syspath: &PyList = py.import("sys")?.getattr("path")?.downcast::<PyList>()?;
-        let workspace_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let py_file = workspace_dir.join(path.as_ref());
-        syspath.insert(0, py_file.to_str().unwrap())?;
-        eprintln!("syspath: {:#?}", syspath);
-        Ok(())
-    }
-
-    pub fn config() -> PyResult<Vec<u8>> {
-        Python::with_gil(|py| -> PyResult<Vec<u8>> {
-            register_path(py, "examples")?;
-
-            let module = PyModule::import(py, "config").expect("failed to import `config` module");
-            // let config_str = module.getattr("build_config_proto")?.extract::<Vec<u8>>()?;
-            let config_proto = module
-                .getattr("build_config_proto")?
-                .call1((3,))?
-                .extract::<Vec<u8>>()?;
-            Ok(config_proto)
-        })
-    }
-
-    pub fn import() -> PyResult<()> {
-        Python::with_gil(|py| -> PyResult<()> {
-            register_path(py, "examples")?;
-            let module = PyModule::import(py, "import").expect("failed to import `import` module");
-            module.getattr("foo")?.call0()?;
-
-            Ok(())
-        });
-        Ok(())
-    }
-}
-*/

@@ -92,6 +92,8 @@
       - [[#define-eval-logicop-in-tensorflow-22][define eval logic(op) in tensorflow]]
         - [[#define-val--test-dataset][define val / test dataset]]
         - [[#eval-op][eval op]]
+      - [[#run-in-rust-01][run in rust]]
+        - [[#make-epochs--lr-become-a-placeholder][make epochs / lr become a placeholder]]
 - [[#train-data-and-label][Train data and label]]
 
 * Project
@@ -1097,6 +1099,8 @@ CLOSED: [2021-10-21 四 02:54]
 CLOSED: [2021-10-21 四 02:54]
 ***** DONE eval op
 CLOSED: [2021-10-21 四 02:54]
+**** run in rust [0/1]
+***** TODO make epochs / lr become a placeholder
 
 * Train data and label
 (h,r): (t1,t2,t3,t4,t5)
