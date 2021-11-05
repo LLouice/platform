@@ -253,15 +253,13 @@ def test_ada():
 
 
 class AdaExport(object):
-    def __init__(self,
-                 NE,
-                 NR,
-                 C,
-                 output_dir="export"):
+    def __init__(self, NE, NR, E, C=32, v_dim=10, output_dir="export"):
         super().__init__()
         self.NE = NE
         self.NR = NR
+        self.E = E
         self.C = C
+        self.v_dim = v_dim
 
         self.output_dir = output_dir
 
@@ -278,8 +276,10 @@ class AdaExport(object):
 
     def _build_ph(self):
         with tf.name_scope("custom"):
-            self.batch_size_trn = tf.placeholder(tf.int64, (), "batch_size_trn")
-            self.batch_size_dev = tf.placeholder(tf.int64, (), "batch_size_dev")
+            self.batch_size_trn = tf.placeholder(tf.int64, (),
+                                                 "batch_size_trn")
+            self.batch_size_dev = tf.placeholder(tf.int64, (),
+                                                 "batch_size_dev")
             self.repeat = tf.placeholder(tf.int64, (), "repeat")
             self.lr = tf.placeholder_with_default(0.001, (), "lr")
 
@@ -312,7 +312,6 @@ class AdaExport(object):
                          aux_label_val,
                          self.batch_size_dev,
                          name_suffix="val")
-
 
         with tf.name_scope("data_test"):
             _iterator_test, batch_data_test = self._build_dev_dataset(
@@ -372,10 +371,14 @@ class AdaExport(object):
                     d["label"] = label
                     return d
 
-            dataset_trn = dataset_trn.map(_parse_function_trn, num_parallel_calls=16).map(_transform, num_parallel_calls=16)
+            dataset_trn = dataset_trn.map(_parse_function_trn,
+                                          num_parallel_calls=16).map(
+                                              _transform,
+                                              num_parallel_calls=16)
 
             iterator_trn = dataset_trn.shuffle(50000).repeat(repeat_num).batch(
-                batch_size, drop_remainder=True).prefetch(batch_size).make_initializable_iterator()
+                batch_size, drop_remainder=True).prefetch(
+                    batch_size).make_initializable_iterator()
             # iterator = dataset.shuffle(30000).repeat(10).batch(4).prefetch(4).make_one_shot_iterator()
             batch_data_trn = iterator_trn.get_next("get_next")
         return iterator_trn, batch_data_trn
@@ -434,24 +437,35 @@ class AdaExport(object):
                         tf.expand_dims(d["label"], axis=0))
                     return d
 
-            dataset_dev = dataset_dev.map(_parse_function_dev, num_parallel_calls=16).map(_transform, num_parallel_calls=16)
+            dataset_dev = dataset_dev.map(_parse_function_dev,
+                                          num_parallel_calls=16).map(
+                                              _transform,
+                                              num_parallel_calls=16)
 
-            iterator_dev = dataset_dev.batch(batch_size, drop_remainder=True).prefetch(
-                batch_size).make_initializable_iterator()
+            iterator_dev = dataset_dev.batch(
+                batch_size, drop_remainder=True).prefetch(
+                    batch_size).make_initializable_iterator()
             batch_data_dev = iterator_dev.get_next("get_next")
         return iterator_dev, batch_data_dev
 
     def _build_forward(self, e1, rel, training, reuse=None):
         if training:
             with Scope("forward", reuse=reuse) as scope:
-                ada = AdaE(self.NE, self.NR, self.C, prefix=scope.prefix)
+                ada = AdaE(self.NE,
+                           self.NR,
+                           self.E,
+                           self.C,
+                           v_dim=self.v_dim,
+                           prefix=scope.prefix)
                 logits = ada(e1, rel, training)
             return logits
         else:
             with Scope("forward", reuse=reuse) as scope:
                 ada = AdaE(self.NE,
                            self.NR,
+                           self.E,
                            self.C,
+                           v_dim=self.v_dim,
                            reuse=True,
                            prefix=scope.prefix)
                 logits = ada(e1, rel, training)
@@ -495,10 +509,10 @@ class AdaExport(object):
                 i = tf.constant(0, dtype=tf.int64)
                 arr_idx = tf.constant(0, dtype=tf.int64)
                 ranks = tf.TensorArray(tf.int32,
-                                    size=1,
-                                    element_shape=(),
-                                    dynamic_size=True,
-                                    name=f"ranks_{name_suffix}")
+                                       size=1,
+                                       element_shape=(),
+                                       dynamic_size=True,
+                                       name=f"ranks_{name_suffix}")
 
                 scores = preds * tf.subtract(1.0, tf.cast(auxes, tf.float32))
 
@@ -519,11 +533,11 @@ class AdaExport(object):
                     row_len = tf.cast(tf.shape(label)[0], tf.int64)
 
                     def cond_inner(j, i, row_len, arr_idx, pred, score, label,
-                                ranks):
+                                   ranks):
                         return tf.less(j, row_len)
 
-                    def loop_body_inner(j, i, row_len, arr_idx, pred, score, label,
-                                        ranks):
+                    def loop_body_inner(j, i, row_len, arr_idx, pred, score,
+                                        label, ranks):
                         # build once
                         l = label[j]
                         # pick out cur position
@@ -542,17 +556,17 @@ class AdaExport(object):
                         # with tf.control_dependencies([print_op]):
                         sorted_idx = tf.argsort(score_l,
                                                 direction="DESCENDING")
-                            # print_op = tf.print("sorted_idx", sorted_idx)
+                        # print_op = tf.print("sorted_idx", sorted_idx)
 
                         # with tf.control_dependencies([print_op]):
                         rank = tf.add(tf.argsort(sorted_idx)[l], 1)
-                            # print_rank = tf.print("==== rank ===: ", rank)
+                        # print_rank = tf.print("==== rank ===: ", rank)
 
                         # with tf.control_dependencies([print_rank]):
                         ranks = ranks.write(tf.cast(arr_idx, tf.int32), rank)
 
-                        return (tf.add(j, 1), i, row_len, tf.add(arr_idx, 1), pred,
-                                score, label, ranks)
+                        return (tf.add(j, 1), i, row_len, tf.add(arr_idx, 1),
+                                pred, score, label, ranks)
 
                     j = tf.constant(0, dtype=tf.int64)
 
@@ -563,8 +577,8 @@ class AdaExport(object):
                         (j, i, row_len, arr_idx, pred, score, label, ranks),
                         parallel_iterations=16)
 
-                    return (tf.add(i,
-                                1), arr_idx, preds, scores, labels, ranks_inner)
+                    return (tf.add(i, 1), arr_idx, preds, scores, labels,
+                            ranks_inner)
 
                 # 1)
                 i, arr_idx, preds, scores, labels, ranks_out = tf.while_loop(
@@ -576,24 +590,28 @@ class AdaExport(object):
                 ranks_tensor = ranks_out.stack()
 
                 rank = tf.reduce_mean(tf.cast(ranks_tensor, tf.float32),
-                                    name=f"rank_{name_suffix}")
+                                      name=f"rank_{name_suffix}")
                 hits1 = tf.reduce_mean(tf.where(
                     tf.less(ranks_tensor, 2),
                     tf.ones_like(ranks_tensor, dtype=tf.float32),
                     tf.zeros_like(ranks_tensor, dtype=tf.float32)),
-                                    name=f"hits1_{name_suffix}")
+                                       name=f"hits1_{name_suffix}")
                 hits3 = tf.reduce_mean(tf.where(
                     tf.less(ranks_tensor, 4),
                     tf.ones_like(ranks_tensor, dtype=tf.float32),
                     tf.zeros_like(ranks_tensor, dtype=tf.float32)),
-                                    name=f"hits3_{name_suffix}")
+                                       name=f"hits3_{name_suffix}")
                 hits10 = tf.reduce_mean(tf.where(
                     tf.less(ranks_tensor, 11),
                     tf.ones_like(ranks_tensor, dtype=tf.float32),
                     tf.zeros_like(ranks_tensor, dtype=tf.float32)),
                                         name=f"hits10_{name_suffix}")
 
-                eval_op = tf.group(rank, hits1, hits3, hits10, name=f"eval_op_{name_suffix}")
+                eval_op = tf.group(rank,
+                                   hits1,
+                                   hits3,
+                                   hits10,
+                                   name=f"eval_op_{name_suffix}")
 
         return preds, scores, ranks_tensor, rank, hits1, hits3, hits10, eval_op
 
@@ -616,8 +634,10 @@ def export():
     set_gpu(1)
     NE = 28754
     NR = 10
-    C = 8
-    ada_export = AdaExport(NE, NR, C)
+    E = 256
+    C = 32
+    v_dim = 16
+    ada_export = AdaExport(NE, NR, E, C, v_dim)
     ada_export.export()
 
 
