@@ -335,7 +335,7 @@ class AdaExport(object):
     def _build_train_dataset(self, repeat_num, batch_size=4):
         with tf.name_scope('dataset_trn'):
             dataset_trn = tf.data.TFRecordDataset("symptom_trn.tfrecord",
-                                                  num_parallel_reads=8)
+                                                  num_parallel_reads=16)
 
             # Create a description of the features.
             feature_description_trn = {
@@ -383,7 +383,7 @@ class AdaExport(object):
     def _build_dev_dataset(self, dev="test", batch_size=4):
         with tf.name_scope(f"dataset_{dev}"):
             dataset_dev = tf.data.TFRecordDataset(f"symptom_{dev}.tfrecord",
-                                                  num_parallel_reads=8)
+                                                  num_parallel_reads=16)
             feature_description_dev = {
                 'input':
                 tf.io.FixedLenSequenceFeature([],
@@ -560,7 +560,7 @@ class AdaExport(object):
                     cond_inner,
                     loop_body_inner,
                     (j, i, row_len, arr_idx, pred, score, label, ranks),
-                    parallel_iterations=10)
+                    parallel_iterations=16)
 
                 return (tf.add(i,
                                1), arr_idx, preds, scores, labels, ranks_inner)
@@ -569,7 +569,7 @@ class AdaExport(object):
             i, arr_idx, preds, scores, labels, ranks_out = tf.while_loop(
                 cond,
                 loop_body, [i, arr_idx, preds, scores, labels, ranks],
-                parallel_iterations=10)
+                parallel_iterations=16)
 
             # ranks -> hits 1/3/10
             ranks_tensor = ranks_out.stack()
