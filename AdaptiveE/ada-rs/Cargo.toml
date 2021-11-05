@@ -18,3 +18,4 @@ log = "0.4.14"
 random = "0.12.2"
 tensorboard-rs = "0.2.4"
 tensorflow = { version = "0.16.1", features = ["tensorflow_gpu"] }
+tensorflow_proto = { version = "0.3.0", features = ["convert"] }

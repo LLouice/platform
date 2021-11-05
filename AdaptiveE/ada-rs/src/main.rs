@@ -26,6 +26,7 @@ use tensorflow::Status;
 use tensorflow::Tensor;
 
 use ada_rs::init_env_logger;
+use ada_rs::proto::build_config_proto;
 
 #[cfg_attr(feature = "examples_system_alloc", global_allocator)]
 #[cfg(feature = "examples_system_alloc")]
@@ -60,6 +61,8 @@ impl EvalValue {
 
 #[derive(Debug)]
 struct TrainConfig {
+    visible_device_list: String,
+    log_device_placement: bool,
     batch_size_trn: i64,
     batch_size_dev: i64,
     lr: f32,
@@ -74,6 +77,8 @@ struct TrainConfig {
 impl Default for TrainConfig {
     fn default() -> Self {
         Self {
+            visible_device_list: String::from("2"),
+            log_device_placement: false,
             batch_size_trn: 4,
             batch_size_dev: 8,
             lr: 0.001,
@@ -96,6 +101,8 @@ impl TryFrom<&ArgMatches<'_>> for TrainConfig {
         };
 
         Ok(Self {
+            visible_device_list: args.value_of("visible_device_list").unwrap().to_owned(),
+            log_device_placement: args.is_present("log_device_placement"),
             batch_size_trn: args
                 .value_of("batch_size_trn")
                 .map_or_else(|| Ok(4), |x| x.parse::<i64>())?,
@@ -119,6 +126,7 @@ impl TryFrom<&ArgMatches<'_>> for TrainConfig {
     }
 }
 
+#[derive(Debug)]
 struct Ckpt {
     rank: f32,
     loss: f32,
@@ -151,7 +159,13 @@ impl FromStr for Ckpt {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let split: Vec<&str> = s.trim().split("_").collect();
+        let split: Vec<&str> = s[..s.rfind('.').unwrap_or(s.len())]
+            .trim()
+            .split("_")
+            .enumerate()
+            .filter_map(|(i, x)| if i & 1 == 1 { Some(x) } else { None })
+            .collect();
+        dbg!(&split);
         let rank = split[0].parse::<f32>()?;
         let loss = split[1].parse::<f32>()?;
         let epoch = split[2].parse::<i64>()?;
@@ -173,10 +187,24 @@ fn main() -> Result<()> {
         .about("train AdaE with tensorlfow")
         // .license("MIT OR Apache-2.0")
         .arg(
+            Arg::with_name("visible_device_list")
+                .short("v")
+                .long("visible_device_list")
+                .default_value("2")
+                .help("set visible devices, like `2,3`")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("log_device_placement")
+                .short("V")
+                .long("log_device_placement")
+                .help("Whether device placements should be logged"),
+        )
+        .arg(
             Arg::with_name("batch_size_trn")
                 .long("bs_trn")
                 .default_value("4")
-                .help("batch size train")
+                .help("batch size trn")
                 .takes_value(true),
         )
         .arg(
@@ -252,6 +280,8 @@ fn run(train_config: TrainConfig) -> Result<()> {
     println!("TrainConfig: {:#?}", train_config);
 
     let TrainConfig {
+        visible_device_list,
+        log_device_placement,
         batch_size_trn,
         batch_size_dev,
         lr,
@@ -266,7 +296,8 @@ fn run(train_config: TrainConfig) -> Result<()> {
     let logdir = format!("./logs/{}", ex);
 
     // resume from checkpoint
-    let ckpt = ckpt.map(|x| Ckpt::from_str(&x).ok());
+    log::debug!("ckpt: {:?}", ckpt);
+    let ckpt = ckpt.map(|x| dbg!(Ckpt::from_str(&x)).ok());
     let ckpt = match ckpt {
         Some(Some(x)) => Some(x),
         _ => None,
@@ -314,8 +345,10 @@ fn run(train_config: TrainConfig) -> Result<()> {
     graph.import_graph_def(&proto, &ImportGraphDefOptions::new())?;
 
     // session option
-    let config_proto = include_bytes!("../assets/config.proto");
+    // let config_proto = include_bytes!("../assets/config.proto");
     // eprintln!("config_proto: {:?}", config_proto);
+
+    let config_proto = build_config_proto(visible_device_list, log_device_placement)?;
     let mut sess_opt = SessionOptions::new();
     sess_opt.set_config(&config_proto.as_slice())?;
     let session = Session::new(&sess_opt, &graph)?;
@@ -443,6 +476,7 @@ fn run(train_config: TrainConfig) -> Result<()> {
     // Train the model.
     let mut train = || -> Result<()> {
         // restore?
+        log::debug!("ckpt {:?}", ckpt);
         if let Some(ckpt) = ckpt {
             log::info!("restore from ckpt: {}", ckpt);
             restore(&mut init_step, ckpt)?;
@@ -455,6 +489,7 @@ fn run(train_config: TrainConfig) -> Result<()> {
         train_step.add_target(&op_optimize);
 
         let eval = |dev: Dev, writer: &mut SummaryWriter, global_step: i64| -> Result<EvalValue> {
+            log::info!("eval....");
             let mut eval_step = SessionRunArgs::new();
             eval_step.add_feed(&op_ph_batch_size_dev, 0, &batch_size_dev_tensor);
 
@@ -488,7 +523,8 @@ fn run(train_config: TrainConfig) -> Result<()> {
             let mut hit1s = Vec::with_capacity(steps);
             let mut hit3s = Vec::with_capacity(steps);
             let mut hit10s = Vec::with_capacity(steps);
-            for _ in 0..steps {
+            for i in 0..steps {
+                log::info!("eval [{}]", i);
                 session.run(&mut eval_step)?;
                 // fetch
                 let rank: f32 = eval_step.fetch(rank_token)?[0];
