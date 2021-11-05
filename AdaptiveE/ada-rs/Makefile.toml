@@ -1,0 +1,42 @@
+[config]
+default_to_workspace = false
+
+
+[tasks.run]
+command = "cargo"
+args = ["run", "--", "--bs_trn", "5", "--bs_dev", "10", "-e", "10", "-I", "1", "--lr", "0.01"]
+
+[tasks.first]
+command = "cargo"
+args = ["run", "--", "--bs_trn", "20", "--bs_dev", "100", "-e", "10", "-I", "1", "--lr", "0.001",
+"--steps", "100", "--ex", "first", "-R", "rank_10222.462_loss_0.28212926_epoch_5_step_500.data-00000-of-00001"]
+
+
+[tasks.second]
+command = "cargo"
+args = ["run", "--release", "--", "--bs_trn", "1000", "--bs_dev", "4000", "-e", "1000", "-I", "5", "--lr", "0.001", "--ex", "second", "-R", "rank_11862.63_loss_0.23124349_epoch_20_step_860.data-00000-of-00001"]
+
+
+[tasks.third]
+command = "cargo"
+args = ["run", "--release", "--", "--bs_trn", "1000", "--bs_dev", "4000", "-e", "1000", "-I", "200", "--lr", "0.001", "--ex", "third", "-R", "rank_11862.63_loss_0.23124349_epoch_20_step_860.data-00000-of-00001"]
+
+
+[tasks.dbg]
+command = "cargo"
+args = ["run", "--", "--bs_trn", "5", "--bs_dev", "10", "-e", "10", "-I", "1", "--lr", "0.01",
+"--steps", "100", "--ex", "debug", "-R", "rank_10222.462_loss_0.28212926_epoch_5_step_500.data-00000-of-00001"]
+
+
+[tasks.clean]
+run_task = { name = ["clean_logs", "clean_ckpt"], fork = true, parallel = true }
+
+
+[tasks.clean_ckpt]
+command = "rm"
+args = ["-f", "checkpoints/*"]
+
+
+[tasks.clean_logs]
+command = "rm"
+args = ["-f", "logs/first/*"]
