@@ -372,7 +372,7 @@ class AdaExport(object):
                     d["label"] = label
                     return d
 
-            dataset_trn = dataset_trn.map(_parse_function_trn).map(_transform)
+            dataset_trn = dataset_trn.map(_parse_function_trn, num_parallel_calls=16).map(_transform, num_parallel_calls=16)
 
             iterator_trn = dataset_trn.shuffle(50000).repeat(repeat_num).batch(
                 batch_size, drop_remainder=True).prefetch(batch_size).make_initializable_iterator()
@@ -434,7 +434,7 @@ class AdaExport(object):
                         tf.expand_dims(d["label"], axis=0))
                     return d
 
-            dataset_dev = dataset_dev.map(_parse_function_dev).map(_transform)
+            dataset_dev = dataset_dev.map(_parse_function_dev, num_parallel_calls=16).map(_transform, num_parallel_calls=16)
 
             iterator_dev = dataset_dev.batch(batch_size, drop_remainder=True).prefetch(
                 batch_size).make_initializable_iterator()
@@ -488,111 +488,112 @@ class AdaExport(object):
                     auxes,
                     batch_size=3,
                     name_suffix="val"):
-        with tf.variable_scope(f"eval_{name_suffix}"):
-            preds = tf.nn.sigmoid(logits, name="preds")
+        with tf.device('/cpu:0'):
+            with tf.variable_scope(f"eval_{name_suffix}"):
+                preds = tf.nn.sigmoid(logits, name="preds")
 
-            i = tf.constant(0, dtype=tf.int64)
-            arr_idx = tf.constant(0, dtype=tf.int64)
-            ranks = tf.TensorArray(tf.int32,
-                                   size=1,
-                                   element_shape=(),
-                                   dynamic_size=True,
-                                   name=f"ranks_{name_suffix}")
+                i = tf.constant(0, dtype=tf.int64)
+                arr_idx = tf.constant(0, dtype=tf.int64)
+                ranks = tf.TensorArray(tf.int32,
+                                    size=1,
+                                    element_shape=(),
+                                    dynamic_size=True,
+                                    name=f"ranks_{name_suffix}")
 
-            scores = preds * tf.subtract(1.0, tf.cast(auxes, tf.float32))
+                scores = preds * tf.subtract(1.0, tf.cast(auxes, tf.float32))
 
-            # preds is tensor(readout)
-            def cond(i, arr_idx, preds, scores, labels, ranks):
-                return tf.less(i, batch_size)
+                # preds is tensor(readout)
+                def cond(i, arr_idx, preds, scores, labels, ranks):
+                    return tf.less(i, batch_size)
 
-            def loop_body(i, arr_idx, preds, scores, labels, ranks):
-                # the i-th row
-                # build once
-                pred = preds[i]
-                score = scores[i]
-                label = labels[i][0]  #[0] for ragged extra axis
-
-                # print_op = tf.print("===\n", i, label)
-
-                # with tf.control_dependencies([print_op]):
-                row_len = tf.cast(tf.shape(label)[0], tf.int64)
-
-                def cond_inner(j, i, row_len, arr_idx, pred, score, label,
-                               ranks):
-                    return tf.less(j, row_len)
-
-                def loop_body_inner(j, i, row_len, arr_idx, pred, score, label,
-                                    ranks):
+                def loop_body(i, arr_idx, preds, scores, labels, ranks):
+                    # the i-th row
                     # build once
-                    l = label[j]
-                    # pick out cur position
-                    p = pred[l]
-                    # op3 = tf.print("p shape: ", tf.shape(p))
-                    # op4 = tf.print("p : ", p, "\n", "label: ", label, "l: ", l)
-                    # # race?
-                    # print_op = tf.print("score1", score)
+                    pred = preds[i]
+                    score = scores[i]
+                    label = labels[i][0]  #[0] for ragged extra axis
 
-                    # with tf.control_dependencies([print_op, op3, op4]):
-                    indices = tf.cast(tf.broadcast_to(l, [1, 1]), tf.int32)
-                    score_l = scatter_update_tensor(score, indices, [p])
-
-                    # print_op = tf.print("score2", score_l)
+                    # print_op = tf.print("===\n", i, label)
 
                     # with tf.control_dependencies([print_op]):
-                    sorted_idx = tf.argsort(score_l,
-                                            direction="DESCENDING")
-                        # print_op = tf.print("sorted_idx", sorted_idx)
+                    row_len = tf.cast(tf.shape(label)[0], tf.int64)
 
-                    # with tf.control_dependencies([print_op]):
-                    rank = tf.add(tf.argsort(sorted_idx)[l], 1)
-                        # print_rank = tf.print("==== rank ===: ", rank)
+                    def cond_inner(j, i, row_len, arr_idx, pred, score, label,
+                                ranks):
+                        return tf.less(j, row_len)
 
-                    # with tf.control_dependencies([print_rank]):
-                    ranks = ranks.write(tf.cast(arr_idx, tf.int32), rank)
+                    def loop_body_inner(j, i, row_len, arr_idx, pred, score, label,
+                                        ranks):
+                        # build once
+                        l = label[j]
+                        # pick out cur position
+                        p = pred[l]
+                        # op3 = tf.print("p shape: ", tf.shape(p))
+                        # op4 = tf.print("p : ", p, "\n", "label: ", label, "l: ", l)
+                        # # race?
+                        # print_op = tf.print("score1", score)
 
-                    return (tf.add(j, 1), i, row_len, tf.add(arr_idx, 1), pred,
-                            score, label, ranks)
+                        # with tf.control_dependencies([print_op, op3, op4]):
+                        indices = tf.cast(tf.broadcast_to(l, [1, 1]), tf.int32)
+                        score_l = scatter_update_tensor(score, indices, [p])
 
-                j = tf.constant(0, dtype=tf.int64)
+                        # print_op = tf.print("score2", score_l)
 
-                # 2)
-                j, i, row_len, arr_idx, pred, score, label, ranks_inner = tf.while_loop(
-                    cond_inner,
-                    loop_body_inner,
-                    (j, i, row_len, arr_idx, pred, score, label, ranks),
+                        # with tf.control_dependencies([print_op]):
+                        sorted_idx = tf.argsort(score_l,
+                                                direction="DESCENDING")
+                            # print_op = tf.print("sorted_idx", sorted_idx)
+
+                        # with tf.control_dependencies([print_op]):
+                        rank = tf.add(tf.argsort(sorted_idx)[l], 1)
+                            # print_rank = tf.print("==== rank ===: ", rank)
+
+                        # with tf.control_dependencies([print_rank]):
+                        ranks = ranks.write(tf.cast(arr_idx, tf.int32), rank)
+
+                        return (tf.add(j, 1), i, row_len, tf.add(arr_idx, 1), pred,
+                                score, label, ranks)
+
+                    j = tf.constant(0, dtype=tf.int64)
+
+                    # 2)
+                    j, i, row_len, arr_idx, pred, score, label, ranks_inner = tf.while_loop(
+                        cond_inner,
+                        loop_body_inner,
+                        (j, i, row_len, arr_idx, pred, score, label, ranks),
+                        parallel_iterations=16)
+
+                    return (tf.add(i,
+                                1), arr_idx, preds, scores, labels, ranks_inner)
+
+                # 1)
+                i, arr_idx, preds, scores, labels, ranks_out = tf.while_loop(
+                    cond,
+                    loop_body, [i, arr_idx, preds, scores, labels, ranks],
                     parallel_iterations=16)
 
-                return (tf.add(i,
-                               1), arr_idx, preds, scores, labels, ranks_inner)
+                # ranks -> hits 1/3/10
+                ranks_tensor = ranks_out.stack()
 
-            # 1)
-            i, arr_idx, preds, scores, labels, ranks_out = tf.while_loop(
-                cond,
-                loop_body, [i, arr_idx, preds, scores, labels, ranks],
-                parallel_iterations=16)
+                rank = tf.reduce_mean(tf.cast(ranks_tensor, tf.float32),
+                                    name=f"rank_{name_suffix}")
+                hits1 = tf.reduce_mean(tf.where(
+                    tf.less(ranks_tensor, 2),
+                    tf.ones_like(ranks_tensor, dtype=tf.float32),
+                    tf.zeros_like(ranks_tensor, dtype=tf.float32)),
+                                    name=f"hits1_{name_suffix}")
+                hits3 = tf.reduce_mean(tf.where(
+                    tf.less(ranks_tensor, 4),
+                    tf.ones_like(ranks_tensor, dtype=tf.float32),
+                    tf.zeros_like(ranks_tensor, dtype=tf.float32)),
+                                    name=f"hits3_{name_suffix}")
+                hits10 = tf.reduce_mean(tf.where(
+                    tf.less(ranks_tensor, 11),
+                    tf.ones_like(ranks_tensor, dtype=tf.float32),
+                    tf.zeros_like(ranks_tensor, dtype=tf.float32)),
+                                        name=f"hits10_{name_suffix}")
 
-            # ranks -> hits 1/3/10
-            ranks_tensor = ranks_out.stack()
-
-            rank = tf.reduce_mean(tf.cast(ranks_tensor, tf.float32),
-                                  name=f"rank_{name_suffix}")
-            hits1 = tf.reduce_mean(tf.where(
-                tf.less(ranks_tensor, 2),
-                tf.ones_like(ranks_tensor, dtype=tf.float32),
-                tf.zeros_like(ranks_tensor, dtype=tf.float32)),
-                                   name=f"hits1_{name_suffix}")
-            hits3 = tf.reduce_mean(tf.where(
-                tf.less(ranks_tensor, 4),
-                tf.ones_like(ranks_tensor, dtype=tf.float32),
-                tf.zeros_like(ranks_tensor, dtype=tf.float32)),
-                                   name=f"hits3_{name_suffix}")
-            hits10 = tf.reduce_mean(tf.where(
-                tf.less(ranks_tensor, 11),
-                tf.ones_like(ranks_tensor, dtype=tf.float32),
-                tf.zeros_like(ranks_tensor, dtype=tf.float32)),
-                                    name=f"hits10_{name_suffix}")
-
-            eval_op = tf.group(rank, hits1, hits3, hits10, name=f"eval_op_{name_suffix}")
+                eval_op = tf.group(rank, hits1, hits3, hits10, name=f"eval_op_{name_suffix}")
 
         return preds, scores, ranks_tensor, rank, hits1, hits3, hits10, eval_op
 
