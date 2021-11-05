@@ -25,6 +25,8 @@ use tensorflow::SessionRunArgs;
 use tensorflow::Status;
 use tensorflow::Tensor;
 
+use ada_rs::init_env_logger;
+
 #[cfg_attr(feature = "examples_system_alloc", global_allocator)]
 #[cfg(feature = "examples_system_alloc")]
 static ALLOCATOR: std::alloc::System = std::alloc::System;
@@ -164,6 +166,7 @@ impl FromStr for Ckpt {
 }
 
 fn main() -> Result<()> {
+    init_env_logger!();
     let mut app = App::new("AdaE-train")
         .version("1.0")
         .author("LLouice")
@@ -283,9 +286,13 @@ fn run(train_config: TrainConfig) -> Result<()> {
     let repeat_num_tensor = Tensor::<i64>::new(&[]).with_values(&[repeat_num])?;
     let lr_tensor = Tensor::<f32>::new(&[]).with_values(&[lr])?;
 
-    println!(
+    log::debug!(
         "batch_size_trn: {}\tbatch_size_dev: {}\tlr: {}\tsteps: {}\trepeat_num: {}",
-        batch_size_trn_tensor, batch_size_dev_tensor, lr_tensor, steps, repeat_num_tensor
+        batch_size_trn_tensor,
+        batch_size_dev_tensor,
+        lr_tensor,
+        steps,
+        repeat_num_tensor
     );
 
     // graph dir
@@ -402,7 +409,7 @@ fn run(train_config: TrainConfig) -> Result<()> {
             session.run(&mut inspect_data_step)?;
             let batch_data: Tensor<i64> = inspect_data_step.fetch(batch_data_ix)?;
             // eprintln!("batch_data:\n\t{:?}", batch_data);
-            eprintln!("batch_data:\n\t{}", batch_data);
+            log::debug!("batch_data:\n\t{}", batch_data);
         }
         Ok(())
     };
@@ -437,7 +444,7 @@ fn run(train_config: TrainConfig) -> Result<()> {
     let mut train = || -> Result<()> {
         // restore?
         if let Some(ckpt) = ckpt {
-            // TODO: and log!
+            log::info!("restore from ckpt: {}", ckpt);
             restore(&mut init_step, ckpt)?;
         }
 
@@ -447,15 +454,17 @@ fn run(train_config: TrainConfig) -> Result<()> {
         let global_step_token = train_step.request_fetch(&op_global_step, 0);
         train_step.add_target(&op_optimize);
 
-        // TODO: eval has bug, not steps, just one batch and not re-init, OutOfRange
         let eval = |dev: Dev, writer: &mut SummaryWriter, global_step: i64| -> Result<EvalValue> {
             let mut eval_step = SessionRunArgs::new();
             eval_step.add_feed(&op_ph_batch_size_dev, 0, &batch_size_dev_tensor);
 
-            let (rank_token, hit1_token, hit3_token, hit10_token) = match dev {
+            let (steps, rank_token, hit1_token, hit3_token, hit10_token) = match dev {
                 Dev::Val => {
+                    eval_step.add_feed(&op_val_record_path, 0, &val_record_path);
+                    eval_step.add_target(&op_batch_data_val_init);
                     eval_step.add_target(&op_eval_val);
                     (
+                        (VAL_SIZE / batch_size_dev) as usize,
                         eval_step.request_fetch(&op_rank_val, 0),
                         eval_step.request_fetch(&op_hit1_val, 0),
                         eval_step.request_fetch(&op_hit3_val, 0),
@@ -463,8 +472,11 @@ fn run(train_config: TrainConfig) -> Result<()> {
                     )
                 }
                 Dev::Test => {
+                    eval_step.add_feed(&op_test_record_path, 0, &test_record_path);
+                    eval_step.add_target(&op_batch_data_test_init);
                     eval_step.add_target(&op_eval_test);
                     (
+                        (TEST_SIZE / batch_size_dev) as usize,
                         eval_step.request_fetch(&op_rank_test, 0),
                         eval_step.request_fetch(&op_hit1_test, 0),
                         eval_step.request_fetch(&op_hit3_test, 0),
@@ -472,19 +484,36 @@ fn run(train_config: TrainConfig) -> Result<()> {
                     )
                 }
             };
-            session.run(&mut eval_step)?;
-            // fetch
-            let rank: f32 = eval_step.fetch(rank_token)?[0];
-            let hit1: f32 = eval_step.fetch(hit1_token)?[0];
-            let hit3: f32 = eval_step.fetch(hit3_token)?[0];
-            let hit10: f32 = eval_step.fetch(hit10_token)?[0];
+            let mut ranks = Vec::with_capacity(steps);
+            let mut hit1s = Vec::with_capacity(steps);
+            let mut hit3s = Vec::with_capacity(steps);
+            let mut hit10s = Vec::with_capacity(steps);
+            for _ in 0..steps {
+                session.run(&mut eval_step)?;
+                // fetch
+                let rank: f32 = eval_step.fetch(rank_token)?[0];
+                let hit1: f32 = eval_step.fetch(hit1_token)?[0];
+                let hit3: f32 = eval_step.fetch(hit3_token)?[0];
+                let hit10: f32 = eval_step.fetch(hit10_token)?[0];
+                ranks.push(rank);
+                hit1s.push(hit1);
+                hit3s.push(hit3);
+                hit10s.push(hit10);
+            }
+            let rank: f32 = ranks.into_iter().sum::<f32>() / steps as f32;
+            let hit1: f32 = hit1s.into_iter().sum::<f32>() / steps as f32;
+            let hit3: f32 = hit3s.into_iter().sum::<f32>() / steps as f32;
+            let hit10: f32 = hit10s.into_iter().sum::<f32>() / steps as f32;
             writer.add_scalar("rank", rank, global_step as usize);
             writer.add_scalar("hit1", hit1, global_step as usize);
             writer.add_scalar("hit3", hit3, global_step as usize);
             writer.add_scalar("hit10", hit10, global_step as usize);
-            println!(
+            log::info!(
                 "rank: {}, hit1: {} hit3: {}, hit10: {}",
-                rank, hit1, hit3, hit10
+                rank,
+                hit1,
+                hit3,
+                hit10
             );
             writer.flush();
             let value = EvalValue::new(rank, hit1, hit3, hit10);
@@ -505,7 +534,7 @@ fn run(train_config: TrainConfig) -> Result<()> {
                 writer.add_scalar("loss", loss, global_step as usize);
             }
             let loss = total_loss / steps as f32;
-            println!("[{}] loss: {}", e, loss);
+            log::info!("[{}] loss: {}", e, loss);
             if e % eval_interval == 0 {
                 let eval_value = eval(Dev::Val, &mut writer, global_step)?;
                 let ckpt = Ckpt::new(eval_value.rank, loss, e, global_step);
