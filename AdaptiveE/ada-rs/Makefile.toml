@@ -6,10 +6,10 @@ default_to_workspace = false
 command = "cargo"
 args = ["run", "--", "--bs_trn", "5", "--bs_dev", "10", "-e", "10", "-I", "1", "--lr", "0.01"]
 
+
 [tasks.first]
 command = "cargo"
-args = ["run", "--", "--bs_trn", "20", "--bs_dev", "100", "-e", "10", "-I", "1", "--lr", "0.001",
-"--steps", "100", "--ex", "first", "-R", "rank_10222.462_loss_0.28212926_epoch_5_step_500.data-00000-of-00001"]
+args = ["run", "--release", "--", "--bs_trn", "400", "--bs_dev", "4000", "-e", "5000", "-I", "50", "--lr", "0.0003", "--ex", "first", "${@}"]
 
 
 [tasks.second]
@@ -24,8 +24,7 @@ args = ["run", "--release", "--", "--bs_trn", "1000", "--bs_dev", "4000", "-e", 
 
 [tasks.dbg]
 command = "cargo"
-args = ["run", "--", "--bs_trn", "5", "--bs_dev", "10", "-e", "10", "-I", "1", "--lr", "0.01",
-"--steps", "100", "--ex", "debug", "-R", "rank_10222.462_loss_0.28212926_epoch_5_step_500.data-00000-of-00001"]
+args = ["run", "--release", "--", "--bs_trn", "300", "--bs_dev", "4000", "-e", "10", "-I", "3", "--lr", "0.01", "--steps", "100", "--ex", "debug", "-R", "rank_11641.3_loss_0.2790304_epoch_6_step_599.data-00000-of-00001", "${@}"]
 
 
 [tasks.clean]
