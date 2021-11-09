@@ -1,0 +1,28 @@
+[config]
+default_to_workspace = false
+
+[env]
+LOCAL_IP = "10.210.67.206"
+LOCAL_DIR = "/run/media/llouice/LLouice/dev/Rust/my/doing/Do/platform/AdaptiveE/py"
+
+
+[tasks.dbg]
+command = "python"
+args = ['train.py', "--visible_device_list", "0", '-e', '10', '--train_size', '16', '--val_size', '16', '--test_size', '16', '-I', '1']
+dependencies = ["fetch_train"]
+
+
+[tasks.idbg]
+command = "python"
+args = ["-m", "pdb", 'train.py', '-e', '10', '--train_size', '16', '--val_size', '16', '--test_size', '16', '-I', '1']
+dependencies = ["fetch_train"]
+
+
+[tasks.first]
+command = "python"
+args = ["train.py", "--visible_device_list", "0", "--batch_size_trn", "400", "--batch_size_dev", "4000", "-e", "5000", "-I", "50", "--lr", "0.0003", "--ex", "first", "${@}"]
+
+
+[tasks.fetch_train]
+command = "scp"
+args=['-r', 'llouice@${LOCAL_IP}:${LOCAL_DIR}/train.py', 'train.py']

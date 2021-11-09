@@ -1,7 +1,8 @@
 import tensorflow as tf
 import numpy as np
 from utils import set_gpu, write_graph, scatter_update_tensor, Scope
-# from utils import embedding as utils_embedding
+
+from const import TRAIN_SIZE, VAL_SIZE, TEST_SIZE, NE, NR
 
 # build create static ops
 # call create ops dependent on logic
@@ -282,6 +283,14 @@ class AdaExport(object):
                                                  "batch_size_dev")
             self.repeat = tf.placeholder(tf.int64, (), "repeat")
             self.lr = tf.placeholder_with_default(0.001, (), "lr")
+            # dataset
+            self.train_size = tf.placeholder_with_default(
+                tf.constant(TRAIN_SIZE, tf.int64), (), "train_size")
+
+            self.val_size = tf.placeholder_with_default(
+                tf.constant(VAL_SIZE, tf.int64), (), "val_size")
+            self.test_size = tf.placeholder_with_default(
+                tf.constant(TEST_SIZE, tf.int64), (), "test_size")
 
     def _build_train(self):
         with tf.name_scope("data_trn"):
@@ -299,7 +308,7 @@ class AdaExport(object):
         # eval
         with tf.name_scope("data_val"):
             _iterator_val, batch_data_val = self._build_dev_dataset(
-                dev="val", batch_size=self.batch_size_dev)
+                self.val_size, dev="val", batch_size=self.batch_size_dev)
             inp_val = batch_data_val["input"]
             inp_val.set_shape((None, 2))
             label_val = batch_data_val["label"]
@@ -307,15 +316,17 @@ class AdaExport(object):
             e1_val, rel_val = tf.unstack(inp_val, axis=1)
 
         logits_val = self._build_forward(e1_val, rel_val, False, reuse=True)
-        self._build_eval(logits_val,
-                         label_val,
-                         aux_label_val,
-                         self.batch_size_dev,
-                         name_suffix="val")
+
+        _, _, _, self.rank_val, self.hits1_val, self.hits3_val, self.hits10_val, _ = self._build_eval(
+            logits_val,
+            label_val,
+            aux_label_val,
+            self.batch_size_dev,
+            name_suffix="val")
 
         with tf.name_scope("data_test"):
             _iterator_test, batch_data_test = self._build_dev_dataset(
-                dev="test", batch_size=self.batch_size_dev)
+                self.test_size, dev="test", batch_size=self.batch_size_dev)
             inp_test = batch_data_test["input"]
             inp_test.set_shape((None, 2))
             label_test = batch_data_test["label"]
@@ -323,11 +334,13 @@ class AdaExport(object):
             e1_test, rel_test = tf.unstack(inp_test, axis=1)
 
         logits_test = self._build_forward(e1_test, rel_test, False, reuse=True)
-        self._build_eval(logits_test,
-                         label_test,
-                         aux_label_test,
-                         self.batch_size_dev,
-                         name_suffix="test")
+
+        _, _, _, self.rank_test, self.hits1_test, self.hits3_test, self.hits10_test, _ = self._build_eval(
+            logits_test,
+            label_test,
+            aux_label_test,
+            self.batch_size_dev,
+            name_suffix="test")
 
         self.saver = tf.train.Saver(tf.global_variables())
 
@@ -376,14 +389,16 @@ class AdaExport(object):
                                               _transform,
                                               num_parallel_calls=16)
 
-            iterator_trn = dataset_trn.shuffle(50000).repeat(repeat_num).batch(
-                batch_size, drop_remainder=True).prefetch(
-                    batch_size).make_initializable_iterator()
+            iterator_trn = dataset_trn.take(self.train_size).shuffle(
+                tf.cast((tf.cast(self.train_size, tf.float32) * 1.2),
+                        tf.int64)).repeat(repeat_num).batch(
+                            batch_size, drop_remainder=True).prefetch(
+                                batch_size).make_initializable_iterator()
             # iterator = dataset.shuffle(30000).repeat(10).batch(4).prefetch(4).make_one_shot_iterator()
             batch_data_trn = iterator_trn.get_next("get_next")
         return iterator_trn, batch_data_trn
 
-    def _build_dev_dataset(self, dev="test", batch_size=4):
+    def _build_dev_dataset(self, dev_size, dev="test", batch_size=4):
         with tf.name_scope(f"dataset_{dev}"):
             dataset_dev = tf.data.TFRecordDataset(f"symptom_{dev}.tfrecord",
                                                   num_parallel_reads=16)
@@ -442,7 +457,7 @@ class AdaExport(object):
                                               _transform,
                                               num_parallel_calls=16)
 
-            iterator_dev = dataset_dev.batch(
+            iterator_dev = dataset_dev.take(dev_size).batch(
                 batch_size, drop_remainder=True).prefetch(
                     batch_size).make_initializable_iterator()
             batch_data_dev = iterator_dev.get_next("get_next")
@@ -489,11 +504,19 @@ class AdaExport(object):
 
     def _build_summary(self):
         with tf.name_scope('summaries'):
-            tf.summary.scalar('loss', self.loss)
-            tf.summary.histogram('histogram loss', self.loss)
+            loss_s = tf.summary.scalar('loss', self.loss)
+            hloss_s = tf.summary.histogram('histogram loss', self.loss)
             # because you have several summaries, we should merge them all
             # into one op to make it easier to manage
-            self.summary_op = tf.summary.merge_all(name="summary_op")
+            self.summary_op = tf.summary.merge([loss_s, hloss_s],
+                                               name="summary_op")
+
+            # rank_s = tf.summary.scalar('rank', self.rank_val)
+            # hit1_s = tf.summary.scalar('hit1', self.hits1_val)
+            # hit3_s = tf.summary.scalar('hit3', self.hits3_val)
+            # hit10_s = tf.summary.scalar('hit10', self.hits10_val)
+            # self.summary_val_op = tf.summary.merge(
+            #     [rank_s, hit1_s, hit3_s, hit10_s], name="summary_val_op")
 
     #TODO: export sorted_idx or pred_ents
     def _build_eval(self,
@@ -628,6 +651,11 @@ class AdaExport(object):
                           'model.pb',
                           as_text=False)
         write_graph("AdaExport")
+
+
+def build_graph(E: int = 256, C: int = 32, v_dim: int = 16) -> None:
+    ada_export = AdaExport(NE, NR, E, C, v_dim)
+    ada_export.build()
 
 
 def export():
