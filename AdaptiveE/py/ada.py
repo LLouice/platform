@@ -1,3 +1,4 @@
+from numpy.lib.twodim_base import mask_indices
 import tensorflow as tf
 import numpy as np
 from utils import set_gpu, write_graph, scatter_update_tensor, Scope
@@ -7,8 +8,8 @@ from const import TRAIN_SIZE, VAL_SIZE, TEST_SIZE, NE, NR
 # build create static ops
 # call create ops dependent on logic
 
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+# import os
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # from tensorflow.python.util import deprecation
 # deprecation._PRINT_DEPRECATION_WARNINGS = False
@@ -46,7 +47,7 @@ class AdaE(object):
 
         self.path = f"{prefix}AdaE/"
 
-    def embedding_lookup(self, e1, rel):
+    def embedding_lookup(self, e1, rel, pretrained_embeddings=None):
         # [NE, E] - lookup -> [bs, E] -> [bs, E, 1]
         with Scope("embedding_lookup", prefix=self.path, reuse=self.reuse):
             self.emb_e = tf.get_variable(
@@ -58,9 +59,23 @@ class AdaE(object):
                 'emb_r',
                 shape=[self.NR, self.E],
                 initializer=tf.glorot_uniform_initializer())
-            e1_emb = tf.reshape(
-                tf.nn.embedding_lookup(self.emb_e, e1, name="e1_embedding"),
-                [-1, self.E, 1])
+
+            if pretrained_embeddings is not None:
+                e_emb_extra = tf.nn.embedding_lookup(
+                    pretrained_embeddings, e1, name="e1_pretrained_embedding")
+                e1_emb = tf.reshape(
+                    tf.add(
+                        e_emb_extra,
+                        tf.nn.embedding_lookup(self.emb_e,
+                                               e1,
+                                               name="e1_embedding")),
+                    [-1, self.E, 1])
+            else:
+                e1_emb = tf.reshape(
+                    tf.nn.embedding_lookup(self.emb_e, e1,
+                                           name="e1_embedding"),
+                    [-1, self.E, 1])
+
             rel_emb = tf.reshape(
                 tf.nn.embedding_lookup(self.emb_rel, rel,
                                        name="rel_embedding"), [-1, self.E, 1])
@@ -129,9 +144,10 @@ class AdaE(object):
                              training=training)
         return x
 
-    def __call__(self, e1, rel, training=False):
+    def __call__(self, e1, rel, training=False, pretrained_embeddings=None):
         with Scope("AdaE", prefix=self.prefix, reuse=self.reuse) as scope:
-            e1_emb, rel_emb = self.embedding_lookup(e1, rel)
+            e1_emb, rel_emb = self.embedding_lookup(e1, rel,
+                                                    pretrained_embeddings)
             e1_emb, rel_emb = self.ic_emb(e1_emb, rel_emb, training)
             A = self.make_ada_adj()
             x = self.e1_rel_gcn(e1_emb, rel_emb, A)
@@ -292,6 +308,11 @@ class AdaExport(object):
             self.test_size = tf.placeholder_with_default(
                 tf.constant(TEST_SIZE, tf.int64), (), "test_size")
 
+            # pre-trained word embedding
+            # self.pretrained_embeddings = tf.placeholder(tf.float32, (NE, 512), "pretrained_embeddings")
+            self.pretrained_embeddings = tf.placeholder_with_default(
+                tf.zeros((NE, 512)), (NE, 512), "pretrained_embeddings")
+
     def _build_train(self):
         with tf.name_scope("data_trn"):
             _iterator_trn, batch_data_trn = self._build_train_dataset(
@@ -384,9 +405,93 @@ class AdaExport(object):
                     d["label"] = label
                     return d
 
+            def _transform1(d):
+                def _find_left_bound(masked_label, l, start, end):
+                    while start < end:
+                        mid = l + (r - l) >> 1
+                        if masked_label[mid] < l:
+                            start += 1
+                        else:
+                            end -= 1
+                    return start
+
+                with tf.name_scope("transform"):
+                    zeros = tf.zeros(self.NE, name="zeros")
+                    raw_label_set = set(d["label"])
+                    masked_label = np.ones(self.NE) * -1
+                    j = -1
+                    triples = []
+                    neg_triples = []
+                    h = d["inp"][0][0]
+                    r = d["inp"][0][1]
+                    for i in range(self.NE):
+                        if i not in raw_label_set:
+                            j += 1
+                        masked_label[i] = j
+                    for l in raw_label_set:
+                        k = _find_left_bound(masked_label, l, 0, self.NE)
+                        triples.append([h, r, l])
+                        neg_triples.append([h, r, k])
+
+                    d["triple"] = tf.concat(triples, axis=0)
+                    d["neg_triple"] = tf.concat(neg_triples, axis=0)
+                    label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
+                    d["num_label"] = tf.shape(label)
+                    label = scatter_update_tensor(
+                        zeros, tf.cast(tf.expand_dims(label, axis=1),
+                                       tf.int32),
+                        tf.ones_like(label, dtype=tf.float32))
+
+                    d["label"] = label
+                    return d
+
+            def _transform2(d):
+                with tf.name_scope("transform"):
+                    label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
+                    ents = tf.range(0, self.NE, dtype=tf.int64, name="ents")
+                    pos_label_num = tf.reduce_sum(label)
+                    pos_label = tf.boolean_mask(ents, tf.cast(label, tf.bool))
+                    neg_label = tf.boolean_mask(ents,
+                                                tf.cast(1 - label, tf.bool))
+                    neg_label_num = tf.subtract(tf.cast(self.NE, tf.int64),
+                                                pos_label_num)
+                    rand_idx = tf.cast(
+                        tf.random.uniform((pos_label_num, ), 0,
+                                          tf.cast(neg_label_num, tf.float32)),
+                        tf.int64)
+                    neg_label = tf.gather(neg_label, rand_idx)
+
+                    hrs = tf.broadcast_to(d["input"], (pos_label_num, 2))
+                    pos_labels = tf.expand_dims(pos_label, axis=1)
+                    triple = tf.concat((hrs, pos_labels),
+                                       axis=1,
+                                       name="triple")
+                    d["triple"] = triple
+
+                    neg_labels = tf.expand_dims(neg_label, axis=1)
+                    neg_triple = tf.concat((hrs, neg_labels),
+                                           axis=1,
+                                           name="neg_triple")
+                    d["neg_triple"] = neg_triple
+
+                    d["num_label"] = tf.shape(label)
+                    zeros = tf.zeros(self.NE, name="zeros")
+                    label = scatter_update_tensor(
+                        zeros, tf.cast(tf.expand_dims(label, axis=1),
+                                       tf.int32),
+                        tf.ones_like(label, dtype=tf.float32))
+
+                    d["label"] = label
+                    return d
+
+            # dataset_trn = dataset_trn.map(_parse_function_trn,
+            #                               num_parallel_calls=16).map(
+            #                                   _transform,
+            #                                   num_parallel_calls=16)
+
             dataset_trn = dataset_trn.map(_parse_function_trn,
                                           num_parallel_calls=16).map(
-                                              _transform,
+                                              _transform2,
                                               num_parallel_calls=16)
 
             iterator_trn = dataset_trn.take(self.train_size).shuffle(
@@ -472,7 +577,7 @@ class AdaExport(object):
                            self.C,
                            v_dim=self.v_dim,
                            prefix=scope.prefix)
-                logits = ada(e1, rel, training)
+                logits = ada(e1, rel, training, self.pretrained_embeddings)
             return logits
         else:
             with Scope("forward", reuse=reuse) as scope:
@@ -483,7 +588,7 @@ class AdaExport(object):
                            v_dim=self.v_dim,
                            reuse=True,
                            prefix=scope.prefix)
-                logits = ada(e1, rel, training)
+                logits = ada(e1, rel, training, self.pretrained_embeddings)
             return logits
 
     def _build_loss(self, labels, logits):
@@ -501,6 +606,11 @@ class AdaExport(object):
             # self.lr = tf.placeholder_with_default(0.001, [], name='lr')
             self.optimize = tf.train.AdamOptimizer(self.lr).minimize(
                 self.loss, self.global_step, name="optimize")
+
+            self.optimize_sgd = tf.train.GradientDescentOptimizer(
+                self.lr).minimize(self.loss,
+                                  self.global_step,
+                                  name="optimize_sgd")
 
     def _build_summary(self):
         with tf.name_scope('summaries'):
@@ -653,7 +763,7 @@ class AdaExport(object):
         write_graph("AdaExport")
 
 
-def build_graph(E: int = 256, C: int = 32, v_dim: int = 16) -> None:
+def build_graph(E: int = 512, C: int = 32, v_dim: int = 16) -> None:
     ada_export = AdaExport(NE, NR, E, C, v_dim)
     ada_export.build()
 
@@ -662,7 +772,7 @@ def export():
     set_gpu(1)
     NE = 28754
     NR = 10
-    E = 256
+    E = 512
     C = 32
     v_dim = 16
     ada_export = AdaExport(NE, NR, E, C, v_dim)

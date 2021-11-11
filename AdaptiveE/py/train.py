@@ -8,7 +8,7 @@ import argparse
 
 from const import TRAIN_SIZE, VAL_SIZE, TEST_SIZE
 from ada import build_graph
-from utils import set_gpu
+# from utils import set_gpu
 from config import build_config_proto
 
 import logger
@@ -46,6 +46,7 @@ class TrainConfig:
     batch_size_trn: int = 4
     batch_size_dev: int = 8
     lr: float = 0.001
+    opt: str = "Adam"
     epochs: int = 100
     epoch_start: int = 1
     steps: Optional[int] = None
@@ -65,6 +66,7 @@ class TrainConfig:
                self.batch_size_trn, \
                self.batch_size_dev, \
                self.lr, \
+               self.opt, \
                self.epochs, \
                self.epoch_start, \
                self.steps, \
@@ -99,6 +101,7 @@ class TrainConfig:
                 args.batch_size_trn, \
                 args.batch_size_dev, \
                 args.lr, \
+                args.opt, \
                 args.epochs, \
                 epoch_start, \
                 args.steps, \
@@ -134,7 +137,6 @@ class Ckpt:
 
 def main():
     logger.info("start...")
-    set_gpu(0)
     args = parse_cli()
     train_config = TrainConfig.from_cli(args)
     logger.info(train_config)
@@ -181,6 +183,10 @@ def parse_cli():
                         help="learning rate",
                         default=0.001,
                         type=float)
+    parser.add_argument("--opt",
+                        help="select optimizer",
+                        choices=("Adam", "Sgd"),
+                        default="Adam")
     parser.add_argument("-e",
                         "--epochs",
                         help="training epochs",
@@ -214,8 +220,13 @@ def parse_cli():
     return args
 
 
+def load_pretrained_embeddings():
+    pretrained_embeddings = np.load("assets/embeddings.npy")
+    return pretrained_embeddings
+
+
 def run(train_config: TrainConfig) -> Result[None, str]:
-    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, _ex = train_config.destruct(
+    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, _ex = train_config.destruct(
     )
 
     config_proto = build_config_proto(visible_device_list,
@@ -241,6 +252,9 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     ph_train_size = graph.get_tensor_by_name("custom/train_size:0")
     ph_val_size = graph.get_tensor_by_name("custom/val_size:0")
     ph_test_size = graph.get_tensor_by_name("custom/test_size:0")
+
+    ph_pretrained_embeddings = graph.get_tensor_by_name(
+        "custom/pretrained_embeddings:0")
 
     # dataset
     op_batch_data_trn_init = graph.get_operation_by_name(
@@ -271,7 +285,15 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     test_record_path = "assets/symptom_test.tfrecord"
 
     # train op
+
     op_optimize = graph.get_operation_by_name("optimizer/optimize")
+    if opt == "Sgd":
+        op_optimize = graph.get_operation_by_name("optimizer/optimize_sgd")
+    elif opt != "Adam":
+        raise Exception(f"the Optimizer {opt} is not support!")
+    else:
+        pass
+
     op_global_step = graph.get_operation_by_name("optimizer/global_step")
     op_loss = graph.get_operation_by_name("loss/loss")
 
@@ -310,6 +332,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         ph_trn_record_path: trn_record_path,
         ph_val_record_path: val_record_path,
         ph_test_record_path: test_record_path,
+        ph_pretrained_embeddings: load_pretrained_embeddings(),
     }
 
     # init step
@@ -409,8 +432,8 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         logger.info(f"restore form ckpt {ckpt}")
         restore(ckpt)
 
-    session = tf_debug.LocalCLIDebugWrapperSession(session)
-    session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
+    # session = tf_debug.LocalCLIDebugWrapperSession(session)
+    # session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 
     global_step = 0
     for e in range(epoch_start, epochs + 1):
