@@ -1,9 +1,9 @@
-from numpy.lib.twodim_base import mask_indices
-import tensorflow as tf
 import numpy as np
-from utils import set_gpu, write_graph, scatter_update_tensor, Scope
+import tensorflow as tf
+from numpy.lib.twodim_base import mask_indices
 
-from const import TRAIN_SIZE, VAL_SIZE, TEST_SIZE, NE, NR
+from const import NE, NR, TEST_SIZE, TRAIN_SIZE, VAL_SIZE
+from utils import Scope, scatter_update_tensor, set_gpu, write_graph
 
 # build create static ops
 # call create ops dependent on logic
@@ -81,6 +81,42 @@ class AdaE(object):
                                        name="rel_embedding"), [-1, self.E, 1])
         return e1_emb, rel_emb
 
+    def transe(self, triple, neg_triple):
+        with Scope("transe", prefix=self.path, reuse=self.reuse):
+            pos_h_e = triple[0]
+            pos_r_e = triple[1]
+            pos_t_e = triple[2]
+            neg_h_e = neg_triple[0]
+            neg_r_e = neg_triple[1]
+            neg_t_e = neg_triple[2]
+
+            pos_h_e = tf.nn.embedding_lookup(self.emb_e,
+                                             pos_h_e,
+                                             name="pos_h_e")
+            pos_r_e = tf.nn.embedding_lookup(self.emb_rel,
+                                             pos_r_e,
+                                             name="pos_rel_e")
+            pos_t_e = tf.nn.embedding_lookup(self.emb_e,
+                                             pos_t_e,
+                                             name="pos_t_e")
+            neg_h_e = tf.nn.embedding_lookup(self.emb_e,
+                                             neg_h_e,
+                                             name="neg_h_e")
+            neg_r_e = tf.nn.embedding_lookup(self.emb_rel,
+                                             neg_r_e,
+                                             name="neg_rel_e")
+            neg_t_e = tf.nn.embedding_lookup(self.emb_e,
+                                             neg_t_e,
+                                             name="neg_t_e")
+
+            dis_pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e)**2,
+                                    1,
+                                    keep_dims=True)
+            dis_neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e)**2,
+                                    1,
+                                    keep_dims=True)
+            return dis_pos, dis_neg
+
     def ic_emb(self, e1_emb, rel_emb, training):
         with Scope("ic_emb", prefix=self.path, reuse=self.reuse):
             self.bn_e1 = tf.layers.BatchNormalization(axis=-1, name="bn_e1")
@@ -144,10 +180,24 @@ class AdaE(object):
                              training=training)
         return x
 
-    def __call__(self, e1, rel, training=False, pretrained_embeddings=None):
+    def __call__(self,
+                 e1,
+                 rel,
+                 training=False,
+                 pretrained_embeddings=None,
+                 triple=None,
+                 neg_triple=None):
         with Scope("AdaE", prefix=self.prefix, reuse=self.reuse) as scope:
+
             e1_emb, rel_emb = self.embedding_lookup(e1, rel,
                                                     pretrained_embeddings)
+
+            if triple is not None:
+                dis_pos, dis_neg = self.transe(triple, neg_triple)
+            else:
+                dis_pos = 0
+                dis_neg = 1.
+
             e1_emb, rel_emb = self.ic_emb(e1_emb, rel_emb, training)
             A = self.make_ada_adj()
             x = self.e1_rel_gcn(e1_emb, rel_emb, A)
@@ -168,7 +218,7 @@ class AdaE(object):
                                          shape=[self.NE],
                                          initializer=tf.zeros_initializer())
                 x = tf.add(x, self.b, name="logits")
-        return x
+        return x, dis_pos, dis_neg
 
 
 class GCN(object):
@@ -285,6 +335,8 @@ class AdaExport(object):
         self._build_train()
         self._build_summary()
         # must be the last
+        self._build_print_data()
+
         self._build_init()
 
     def _build_init(self):
@@ -312,31 +364,129 @@ class AdaExport(object):
             # self.pretrained_embeddings = tf.placeholder(tf.float32, (NE, 512), "pretrained_embeddings")
             self.pretrained_embeddings = tf.placeholder_with_default(
                 tf.zeros((NE, 512)), (NE, 512), "pretrained_embeddings")
+            self.use_transe = tf.placeholder_with_default(
+                False, (), "use_transe")
+
+    def _build_print_data(self):
+        self._build_print_data_trn()
+        self._build_print_data_val()
+        self._build_print_data_test()
+
+    def _build_print_data_trn(self):
+        with tf.name_scope("print_data_trn"):
+            triple = self.batch_data_trn["triple"].values.values
+            neg_triple = self.batch_data_trn["neg_triple"].values.values
+
+            inp_trn = self.batch_data_trn["input"]
+            inp_trn.set_shape((None, 2))
+            label_trn = self.batch_data_trn["label"]
+
+            print_op = tf.print(inp_trn,
+                                "\n",
+                                "\n",
+                                "\ntriple:\n",
+                                triple,
+                                "\n",
+                                "\nneg_triple:\n",
+                                neg_triple,
+                                "\n",
+                                "\n",
+                                type(triple),
+                                type(self.batch_data_trn["triple"]),
+                                tf.shape(triple),
+                                tf.shape(neg_triple),
+                                tf.reduce_sum(label_trn),
+                                name="print")
+
+    def _build_print_data_val(self):
+        with tf.name_scope("print_data_val"):
+            triple = self.batch_data_val["triple"].values.values
+            neg_triple = self.batch_data_val["neg_triple"].values.values
+
+            inp_val = self.batch_data_val["input"]
+            inp_val.set_shape((None, 2))
+            label_val = self.batch_data_val["label"]
+
+            print_op = tf.print(inp_val,
+                                "\n",
+                                "\n",
+                                "\ntriple:\n",
+                                triple,
+                                "\n",
+                                "\nneg_triple:\n",
+                                neg_triple,
+                                "\n",
+                                "\n",
+                                type(triple),
+                                type(self.batch_data_val["triple"]),
+                                tf.shape(triple),
+                                tf.shape(neg_triple),
+                                tf.reduce_sum(label_val),
+                                name="print")
+
+    def _build_print_data_test(self):
+        with tf.name_scope("print_data_test"):
+            triple = self.batch_data_test["triple"].values.values
+            neg_triple = self.batch_data_test["neg_triple"].values.values
+
+            inp_test = self.batch_data_test["input"]
+            inp_test.set_shape((None, 2))
+            label_test = self.batch_data_test["label"]
+
+            print_op = tf.print(inp_test,
+                                "\n",
+                                "\n",
+                                "\ntriple:\n",
+                                triple,
+                                "\n",
+                                "\nneg_triple:\n",
+                                neg_triple,
+                                "\n",
+                                "\n",
+                                type(triple),
+                                type(self.batch_data_test["triple"]),
+                                tf.shape(triple),
+                                tf.shape(neg_triple),
+                                tf.reduce_sum(label_test),
+                                name="print")
 
     def _build_train(self):
         with tf.name_scope("data_trn"):
             _iterator_trn, batch_data_trn = self._build_train_dataset(
                 self.repeat, batch_size=self.batch_size_trn)
+            self.batch_data_trn = batch_data_trn
+
+            triple_trn = batch_data_trn["triple"].values.values
+            neg_triple_trn = batch_data_trn["neg_triple"].values.values
+
             inp_trn = batch_data_trn["input"]
             inp_trn.set_shape((None, 2))
             label_trn = batch_data_trn["label"]
             e1_trn, rel_trn = tf.unstack(inp_trn, axis=1)
 
-        logits = self._build_forward(e1_trn, rel_trn, True)
-        self._build_loss(label_trn, logits)
+        logits, dis_pos, dis_neg = self._build_forward(e1_trn, rel_trn, True,
+                                                       None, triple_trn,
+                                                       neg_triple_trn)
+        self._build_loss(label_trn, logits, dis_pos, dis_neg)
         self._build_optimizer()
 
         # eval
         with tf.name_scope("data_val"):
             _iterator_val, batch_data_val = self._build_dev_dataset(
                 self.val_size, dev="val", batch_size=self.batch_size_dev)
+            self.batch_data_val = batch_data_val
+
+            triple_val = batch_data_val["triple"].values.values
+            neg_triple_val = batch_data_val["neg_triple"].values.values
+
             inp_val = batch_data_val["input"]
             inp_val.set_shape((None, 2))
             label_val = batch_data_val["label"]
             aux_label_val = batch_data_val["aux_label"]
             e1_val, rel_val = tf.unstack(inp_val, axis=1)
 
-        logits_val = self._build_forward(e1_val, rel_val, False, reuse=True)
+        logits_val, _, _ = self._build_forward(e1_val, rel_val, False, True,
+                                               triple_val, neg_triple_val)
 
         _, _, _, self.rank_val, self.hits1_val, self.hits3_val, self.hits10_val, _ = self._build_eval(
             logits_val,
@@ -348,13 +498,19 @@ class AdaExport(object):
         with tf.name_scope("data_test"):
             _iterator_test, batch_data_test = self._build_dev_dataset(
                 self.test_size, dev="test", batch_size=self.batch_size_dev)
+            self.batch_data_test = batch_data_test
+
+            triple_test = batch_data_test["triple"].values.values
+            neg_triple_test = batch_data_test["neg_triple"].values.values
+
             inp_test = batch_data_test["input"]
             inp_test.set_shape((None, 2))
             label_test = batch_data_test["label"]
             aux_label_test = batch_data_test["aux_label"]
             e1_test, rel_test = tf.unstack(inp_test, axis=1)
 
-        logits_test = self._build_forward(e1_test, rel_test, False, reuse=True)
+        logits_test, _, _ = self._build_forward(e1_test, rel_test, False, True,
+                                                triple_test, neg_triple_test)
 
         _, _, _, self.rank_test, self.hits1_test, self.hits3_test, self.hits10_test, _ = self._build_eval(
             logits_test,
@@ -406,100 +562,91 @@ class AdaExport(object):
                     return d
 
             def _transform1(d):
-                def _find_left_bound(masked_label, l, start, end):
-                    while start < end:
-                        mid = l + (r - l) >> 1
-                        if masked_label[mid] < l:
-                            start += 1
-                        else:
-                            end -= 1
-                    return start
-
                 with tf.name_scope("transform"):
                     zeros = tf.zeros(self.NE, name="zeros")
-                    raw_label_set = set(d["label"])
-                    masked_label = np.ones(self.NE) * -1
-                    j = -1
-                    triples = []
-                    neg_triples = []
-                    h = d["inp"][0][0]
-                    r = d["inp"][0][1]
-                    for i in range(self.NE):
-                        if i not in raw_label_set:
-                            j += 1
-                        masked_label[i] = j
-                    for l in raw_label_set:
-                        k = _find_left_bound(masked_label, l, 0, self.NE)
-                        triples.append([h, r, l])
-                        neg_triples.append([h, r, k])
-
-                    d["triple"] = tf.concat(triples, axis=0)
-                    d["neg_triple"] = tf.concat(neg_triples, axis=0)
                     label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
                     d["num_label"] = tf.shape(label)
                     label = scatter_update_tensor(
                         zeros, tf.cast(tf.expand_dims(label, axis=1),
                                        tf.int32),
                         tf.ones_like(label, dtype=tf.float32))
-
                     d["label"] = label
                     return d
 
             def _transform2(d):
                 with tf.name_scope("transform"):
                     label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
-                    ents = tf.range(0, self.NE, dtype=tf.int64, name="ents")
-                    pos_label_num = tf.reduce_sum(label)
-                    pos_label = tf.boolean_mask(ents, tf.cast(label, tf.bool))
-                    neg_label = tf.boolean_mask(ents,
-                                                tf.cast(1 - label, tf.bool))
-                    neg_label_num = tf.subtract(tf.cast(self.NE, tf.int64),
-                                                pos_label_num)
-                    rand_idx = tf.cast(
-                        tf.random.uniform((pos_label_num, ), 0,
-                                          tf.cast(neg_label_num, tf.float32)),
-                        tf.int64)
-                    neg_label = tf.gather(neg_label, rand_idx)
-
-                    hrs = tf.broadcast_to(d["input"], (pos_label_num, 2))
-                    pos_labels = tf.expand_dims(pos_label, axis=1)
-                    triple = tf.concat((hrs, pos_labels),
-                                       axis=1,
-                                       name="triple")
-                    d["triple"] = triple
-
-                    neg_labels = tf.expand_dims(neg_label, axis=1)
-                    neg_triple = tf.concat((hrs, neg_labels),
-                                           axis=1,
-                                           name="neg_triple")
-                    d["neg_triple"] = neg_triple
-
-                    d["num_label"] = tf.shape(label)
                     zeros = tf.zeros(self.NE, name="zeros")
                     label = scatter_update_tensor(
                         zeros, tf.cast(tf.expand_dims(label, axis=1),
                                        tf.int32),
                         tf.ones_like(label, dtype=tf.float32))
-
                     d["label"] = label
+
+                    ents = tf.range(0,
+                                    self.NE,
+                                    dtype=tf.int64,
+                                    name="ents")
+                    pos_label_num = tf.cast(tf.reduce_sum(label), tf.int64)
+                    pos_label = tf.boolean_mask(ents,
+                                                tf.cast(label, tf.bool))
+                    neg_label = tf.boolean_mask(
+                        ents, tf.cast(1 - label, tf.bool))
+                    neg_label_num = tf.subtract(tf.cast(self.NE, tf.int64),
+                                                pos_label_num)
+                    rand_idx = tf.cast(
+                        tf.random.uniform((pos_label_num, ), 0,
+                                            tf.cast(neg_label_num,
+                                                    tf.float32)), tf.int64)
+                    neg_label = tf.gather(neg_label, rand_idx)
+
+                    hrs = tf.broadcast_to(d["input"], (pos_label_num, 2))
+                    pos_labels = tf.expand_dims(pos_label, axis=1)
+                    triple = tf.concat((hrs, pos_labels),
+                                        axis=1,
+                                        name="triple")
+
+                    neg_labels = tf.expand_dims(neg_label, axis=1)
+                    neg_triple = tf.concat((hrs, neg_labels),
+                                            axis=1,
+                                            name="neg_triple")
+
+                    d["triple"] = tf.RaggedTensor.from_tensor(
+                        tf.expand_dims(triple, axis=0), name="triple_trn")
+                    d["neg_triple"] = tf.RaggedTensor.from_tensor(
+                        tf.expand_dims(neg_triple, axis=0),
+                        name="neg_triple_trn")
+
+                    # d["num_label"] = tf.shape(label)
+                    # d["pos_label_num"] = pos_label_num
+
+                    # foo = tf.random.uniform((5, ), 0, 10)
+                    # d["foo"] = foo
+                    # d["bar"] = tf.add(foo, 20.)
+
                     return d
 
             # dataset_trn = dataset_trn.map(_parse_function_trn,
             #                               num_parallel_calls=16).map(
             #                                   _transform,
             #                                   num_parallel_calls=16)
-
             dataset_trn = dataset_trn.map(_parse_function_trn,
-                                          num_parallel_calls=16).map(
-                                              _transform2,
-                                              num_parallel_calls=16)
+                                            num_parallel_calls=16).map(
+                                                _transform2,
+                                                num_parallel_calls=16)
 
             iterator_trn = dataset_trn.take(self.train_size).shuffle(
                 tf.cast((tf.cast(self.train_size, tf.float32) * 1.2),
                         tf.int64)).repeat(repeat_num).batch(
                             batch_size, drop_remainder=True).prefetch(
                                 batch_size).make_initializable_iterator()
+
+            # iterator_trn = dataset_trn.take(
+            #     self.train_size).repeat(repeat_num).batch(
+            #         batch_size, drop_remainder=True).prefetch(
+            #             batch_size).make_initializable_iterator()
             # iterator = dataset.shuffle(30000).repeat(10).batch(4).prefetch(4).make_one_shot_iterator()
+
             batch_data_trn = iterator_trn.get_next("get_next")
         return iterator_trn, batch_data_trn
 
@@ -557,45 +704,111 @@ class AdaExport(object):
                         tf.expand_dims(d["label"], axis=0))
                     return d
 
-            dataset_dev = dataset_dev.map(_parse_function_dev,
-                                          num_parallel_calls=16).map(
-                                              _transform,
-                                              num_parallel_calls=16)
+            def _transform2(d):
+                with tf.name_scope("transform"):
+                    zeros = tf.zeros(self.NE, name="zeros")
+                    # aux_label [3, 4, 6] and label: [3]
+                    # boolean mask from aux_label and generate label's positive number sample
+                    label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
 
+                    aux_label = tf.convert_to_tensor(d["aux_label"],
+                                                     dtype=tf.int64)
+                    # [m,] => [m, 1]
+                    aux_label = scatter_update_tensor(
+                        zeros,
+                        tf.cast(tf.expand_dims(aux_label, axis=1), tf.int32),
+                        tf.ones_like(aux_label, dtype=tf.float32))
+                    # soft_label = tf.divide(1., 1. - eps) * label + tf.divide(1.0, N)
+
+                    ents = tf.range(0, self.NE, dtype=tf.int64, name="ents")
+                    pos_label = label
+                    pos_label_num = tf.cast(tf.shape(label)[0], tf.int64)
+                    neg_label = tf.boolean_mask(
+                        ents, tf.cast(1 - aux_label, tf.bool))
+                    neg_label_num = tf.subtract(tf.cast(self.NE, tf.int64),
+                                                tf.cast(tf.reduce_sum(aux_label), tf.int64))
+                    rand_idx = tf.cast(
+                        tf.random.uniform((pos_label_num, ), 0,
+                                          tf.cast(neg_label_num, tf.float32)),
+                        tf.int64)
+                    neg_label = tf.gather(neg_label, rand_idx)
+
+                    hrs = tf.broadcast_to(d["input"], (pos_label_num, 2))
+                    pos_labels = tf.expand_dims(pos_label, axis=1)
+                    triple = tf.concat((hrs, pos_labels),
+                                       axis=1,
+                                       name="triple")
+                    d["triple"] = tf.RaggedTensor.from_tensor(
+                        tf.expand_dims(triple, axis=0))
+
+                    neg_labels = tf.expand_dims(neg_label, axis=1)
+                    neg_triple = tf.concat((hrs, neg_labels),
+                                           axis=1,
+                                           name="neg_triple")
+                    d["neg_triple"] = tf.RaggedTensor.from_tensor(
+                        tf.expand_dims(neg_triple, axis=0))
+
+                    d["aux_label"] = aux_label
+                    d["label"] = tf.RaggedTensor.from_tensor(
+                        tf.expand_dims(d["label"], axis=0))
+                    return d
+
+            # dataset_dev = dataset_dev.map(_parse_function_dev,
+            #                               num_parallel_calls=16).map(
+            #                                   _transform,
+            #                                   num_parallel_calls=16)
+            dataset_dev = dataset_dev.map(_parse_function_dev,
+                                            num_parallel_calls=16).map(
+                                                _transform2,
+                                                num_parallel_calls=16)
             iterator_dev = dataset_dev.take(dev_size).batch(
                 batch_size, drop_remainder=True).prefetch(
                     batch_size).make_initializable_iterator()
             batch_data_dev = iterator_dev.get_next("get_next")
         return iterator_dev, batch_data_dev
 
-    def _build_forward(self, e1, rel, training, reuse=None):
+    def _build_forward(self,
+                       e1,
+                       rel,
+                       training,
+                       reuse=None,
+                       triple=None,
+                       neg_triple=None):
         if training:
             with Scope("forward", reuse=reuse) as scope:
-                ada = AdaE(self.NE,
-                           self.NR,
-                           self.E,
-                           self.C,
-                           v_dim=self.v_dim,
-                           prefix=scope.prefix)
-                logits = ada(e1, rel, training, self.pretrained_embeddings)
-            return logits
+                self.ada = AdaE(self.NE,
+                                self.NR,
+                                self.E,
+                                self.C,
+                                v_dim=self.v_dim,
+                                prefix=scope.prefix)
+                logits, dis_pos, dis_neg = self.ada(e1, rel, training,
+                                                    self.pretrained_embeddings,
+                                                    triple, neg_triple)
+            return logits, dis_pos, dis_neg
         else:
             with Scope("forward", reuse=reuse) as scope:
-                ada = AdaE(self.NE,
-                           self.NR,
-                           self.E,
-                           self.C,
-                           v_dim=self.v_dim,
-                           reuse=True,
-                           prefix=scope.prefix)
-                logits = ada(e1, rel, training, self.pretrained_embeddings)
-            return logits
+                self.ada = AdaE(self.NE,
+                                self.NR,
+                                self.E,
+                                self.C,
+                                v_dim=self.v_dim,
+                                reuse=True,
+                                prefix=scope.prefix)
+                logits, dis_pos, dis_neg = self.ada(e1, rel, training,
+                                                    self.pretrained_embeddings,
+                                                    triple, neg_triple)
+            return logits, dis_pos, dis_neg
 
-    def _build_loss(self, labels, logits):
+    def _build_loss(self, labels, logits, dis_pos, dis_neg, margin=1.0):
         with tf.name_scope('loss'):
-            self.loss = tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
+            self.loss_adae = tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
                 multi_class_labels=labels, logits=logits, label_smoothing=0.1),
-                                      name="loss")
+                                           name="loss_adae")
+            self.loss_margin = tf.reduce_sum(tf.maximum(
+                dis_pos - dis_neg + margin, 0),
+                                             name="loss_margin")
+            self.loss = tf.add(self.loss_adae, self.loss_margin, name="loss")
 
     def _build_optimizer(self):
         with tf.name_scope('optimizer'):
@@ -614,12 +827,15 @@ class AdaExport(object):
 
     def _build_summary(self):
         with tf.name_scope('summaries'):
-            loss_s = tf.summary.scalar('loss', self.loss)
+            loss_s = tf.summary.scalar('loss/loss', self.loss)
             hloss_s = tf.summary.histogram('histogram loss', self.loss)
-            # because you have several summaries, we should merge them all
-            # into one op to make it easier to manage
-            self.summary_op = tf.summary.merge([loss_s, hloss_s],
-                                               name="summary_op")
+
+            loss_adae_s = tf.summary.scalar('loss/adae', self.loss_adae)
+            loss_margin_s = tf.summary.scalar('loss/margin',
+                                                 self.loss_margin)
+            self.summary_op = tf.summary.merge(
+                [loss_s, hloss_s, loss_adae_s, loss_margin_s],
+                name="summary_op")
 
             # rank_s = tf.summary.scalar('rank', self.rank_val)
             # hit1_s = tf.summary.scalar('hit1', self.hits1_val)
@@ -752,14 +968,14 @@ class AdaExport(object):
         self.build()
 
         definition = tf.Session().graph_def
-        # tf.io.write_graph(definition,
-        #                   self.output_dir,
-        #                   'model_txt.pb',
-        #                   as_text=True)
         tf.io.write_graph(definition,
                           self.output_dir,
-                          'model.pb',
-                          as_text=False)
+                          'model_txt.pb',
+                          as_text=True)
+        # tf.io.write_graph(definition,
+        #                   self.output_dir,
+        #                   'model.pb',
+        #                   as_text=False)
         write_graph("AdaExport")
 
 

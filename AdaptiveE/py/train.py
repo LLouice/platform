@@ -1,22 +1,22 @@
 from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass
 # import tensorflow as tf
 from enum import Enum
-from dataclasses import dataclass
 from typing import Optional, Tuple
-from result import Ok, Err, Result
-import argparse
 
-from const import TRAIN_SIZE, VAL_SIZE, TEST_SIZE
+import numpy as np
+import tensorflow as tf
+from result import Err, Ok, Result
+from tensorflow.python import debug as tf_debug
+
+import logger
 from ada import build_graph
 # from utils import set_gpu
 from config import build_config_proto
-
-import logger
+from const import TEST_SIZE, TRAIN_SIZE, VAL_SIZE
 from logger import get_logger
-
-import tensorflow as tf
-from tensorflow.python import debug as tf_debug
-import numpy as np
 
 logger = get_logger("train")
 
@@ -54,6 +54,9 @@ class TrainConfig:
     ckpt_dir: str = "checkpoints"
     ckpt: Optional[str] = None
     ex: str = "default"
+    use_pretrained: bool = False
+    use_transe: bool = False
+    debug: bool = False
 
     def destruct(self):
         return self.logdir, \
@@ -73,7 +76,10 @@ class TrainConfig:
                self.eval_interval, \
                self.ckpt_dir, \
                self.ckpt, \
-               self.ex
+               self.ex, \
+               self.use_pretrained, \
+               self.use_transe, \
+               self.debug,
 
     @classmethod
     def from_cli(cls, args: argparse.Namespace) -> TrainConfig:
@@ -109,6 +115,9 @@ class TrainConfig:
                 args.ckpt_dir, \
                 args.ckpt, \
                 args.ex, \
+                args.use_pretrained, \
+                args.use_transe, \
+                args.debug,
             )
 
 
@@ -215,6 +224,9 @@ def parse_cli():
         help="experiment name",
         default="default",
     )
+    parser.add_argument('--use_pretrained', help="use pretrained w2v embeddings", action="store_true")
+    parser.add_argument('--use_transe', help="use transe", action="store_true")
+    parser.add_argument('--debug', help="debug mode", action="store_true")
 
     args = parser.parse_args()
     return args
@@ -226,7 +238,7 @@ def load_pretrained_embeddings():
 
 
 def run(train_config: TrainConfig) -> Result[None, str]:
-    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, _ex = train_config.destruct(
+    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, _ex, use_pretrained, use_transe, debug_mode = train_config.destruct(
     )
 
     config_proto = build_config_proto(visible_device_list,
@@ -255,12 +267,22 @@ def run(train_config: TrainConfig) -> Result[None, str]:
 
     ph_pretrained_embeddings = graph.get_tensor_by_name(
         "custom/pretrained_embeddings:0")
-
+    ph_use_transe = graph.get_tensor_by_name(
+        "custom/use_transe:0")
     # dataset
     op_batch_data_trn_init = graph.get_operation_by_name(
         "data_trn/dataset_trn/MakeIterator")
+
     op_batch_data_trn = graph.get_operation_by_name(
         "data_trn/dataset_trn/get_next")
+
+    op_batch_data_trn_print = graph.get_operation_by_name(
+        "print_data_trn/print")
+    op_batch_data_val_print = graph.get_operation_by_name(
+        "print_data_val/print")
+    op_batch_data_test_print = graph.get_operation_by_name(
+        "print_data_test/print")
+
     ph_trn_record_path = graph.get_tensor_by_name(
         "data_trn/dataset_trn/Const:0")
     # based on current dir
@@ -285,7 +307,6 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     test_record_path = "assets/symptom_test.tfrecord"
 
     # train op
-
     op_optimize = graph.get_operation_by_name("optimizer/optimize")
     if opt == "Sgd":
         op_optimize = graph.get_operation_by_name("optimizer/optimize_sgd")
@@ -295,7 +316,9 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         pass
 
     op_global_step = graph.get_operation_by_name("optimizer/global_step")
-    op_loss = graph.get_operation_by_name("loss/loss")
+    t_loss = graph.get_tensor_by_name("loss/loss:0")
+    t_loss_adae = graph.get_tensor_by_name("loss/loss_adae:0")
+    t_loss_margin = graph.get_tensor_by_name("loss/loss_margin:0")
 
     # eval op
     op_rank_val = graph.get_operation_by_name("eval_val/rank_val")
@@ -332,8 +355,12 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         ph_trn_record_path: trn_record_path,
         ph_val_record_path: val_record_path,
         ph_test_record_path: test_record_path,
-        ph_pretrained_embeddings: load_pretrained_embeddings(),
+        # ph_pretrained_embeddings: load_pretrained_embeddings(),
     }
+    if use_transe:
+        feed_dict[ph_use_transe] = True
+    if use_pretrained:
+        feed_dict[ph_pretrained_embeddings] = load_pretrained_embeddings()
 
     # init step
     def init():
@@ -344,13 +371,21 @@ def run(train_config: TrainConfig) -> Result[None, str]:
                     feed_dict=feed_dict)
 
     def data():
+        init()
         # inspect data
+        print(epochs)
+        print(steps)
+        print(repeat_num)
         for _ in range(epochs):
             for _ in range(steps):
-                print(session.run(op_batch_data_trn.outputs[0]))
-            print("-" * 30)
-
-    # data()
+                session.run(op_batch_data_trn_print)
+                # session.run(op_batch_data_val_print)
+                # session.run(op_batch_data_test_print)
+                # print("===>", res.shape)
+                print("-" * 30)
+                # break
+            print("=" * 60)
+            # break
 
     def save(ckpt: Ckpt):
         ckpt_path = f"{ckpt_dir}/{ckpt}"
@@ -427,37 +462,53 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         return value
 
     # train
-    init()
-    if ckpt:
-        logger.info(f"restore form ckpt {ckpt}")
-        restore(ckpt)
+    def train(ckpt: Ckpt):
+        init()
+        if ckpt:
+            logger.info(f"restore form ckpt {ckpt}")
+            restore(ckpt)
 
-    # session = tf_debug.LocalCLIDebugWrapperSession(session)
-    # session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
+        # session = tf_debug.LocalCLIDebugWrapperSession(session)
+        # session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 
-    global_step = 0
-    for e in range(epoch_start, epochs + 1):
-        total_loss = 0.
-        for _ in range(steps):
-            loss, summaries, global_step, _ = session.run([
-                op_loss.outputs[0], op_summary.outputs[0],
-                op_global_step.outputs[0], op_optimize
-            ], )
-            # feed_dict={ph_batch_size_dev: np.int64(batch_size_dev)})
-            total_loss += loss
-            # write summary
-            writer.add_summary(summaries, global_step)
+        global_step = 0
+        for e in range(epoch_start, epochs + 1):
+            total_loss = 0.
+            total_loss_adae = 0.
+            total_loss_margin = 0.
+            for _ in range(steps):
+                loss, loss_adae, loss_margin, summaries, global_step, _ = session.run(
+                    [
+                        t_loss, t_loss_adae, t_loss_margin,
+                        op_summary.outputs[0], op_global_step.outputs[0],
+                        op_optimize
+                    ], )
+                # feed_dict={ph_batch_size_dev: np.int64(batch_size_dev)})
+                total_loss += loss
+                total_loss_adae += loss_adae
+                total_loss_margin += loss_margin
+                # write summary
+                writer.add_summary(summaries, global_step)
 
-        loss = total_loss / steps
-        logger.info(f"[{e}] loss: {loss}")
+            loss = total_loss / steps
+            loss_adae = total_loss_adae / steps
+            loss_margin = total_loss_margin / steps
+            logger.info(
+                f"[{e}] loss: {loss}\tloss_adae: {loss_adae}\tloss_margin: {loss_margin}"
+            )
 
-        if e % eval_interval == 0:
-            eval_value = eval(Dev.Val, global_step)
-            ckpt = Ckpt(eval_value.rank, loss, e, global_step)
-            save(ckpt)
+            if e % eval_interval == 0:
+                eval_value = eval(Dev.Val, global_step)
+                ckpt = Ckpt(eval_value.rank, loss, e, global_step)
+                save(ckpt)
 
-    session.close()
-    writer.close()
+        session.close()
+        writer.close()
+
+    if debug_mode:
+        data()
+    else:
+        train(ckpt)
 
 
 if __name__ == "__main__":

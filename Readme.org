@@ -92,9 +92,13 @@
       - [[#define-eval-logicop-in-tensorflow-22][define eval logic(op) in tensorflow]]
         - [[#define-val--test-dataset][define val / test dataset]]
         - [[#eval-op][eval op]]
-      - [[#run-in-rust-02][run in rust]]
+      - [[#run-in-rust-22][run in rust]]
         - [[#make-epochs--lr-become-a-placeholder][make epochs / lr become a placeholder]]
         - [[#add-cli][add cli]]
+- [[#add-word-embedding][Add word embedding]]
+  - [[#gensim][gensim]]
+  - [[#pkgseg-pythoh][pkgseg-pythoh]]
+  - [[#missing][Missing]]
 - [[#train-data-and-label][Train data and label]]
 
 * Project
@@ -1100,9 +1104,28 @@ CLOSED: [2021-10-21 四 02:54]
 CLOSED: [2021-10-21 四 02:54]
 ***** DONE eval op
 CLOSED: [2021-10-21 四 02:54]
-**** run in rust [0/2]
-***** TODO make epochs / lr become a placeholder
-***** TODO add cli
+**** run in rust [2/2]
+***** DONE make epochs / lr become a placeholder
+CLOSED: [2021-11-09 二 13:04]
+***** DONE add cli
+CLOSED: [2021-11-09 二 13:04]
+
+* Add word embedding
+
+** gensim
+[[https://github.com/WENGSYX/Chinese-Word2vec-Medicine]]
+#+begin_src python
+# gensim.models.KeyedVectors
+  model = KeyedVectors.load_word2vec_format('Medical.txt', binary=False)
+#+end_src
+
+** pkgseg-pythoh
+[[https://github.com/lancopku/pkuseg-python]]
+
+** Missing
+NE: 28754
+Missing: 6474
+Missing ratio: 22.5%
 
 * Train data and label
 (h,r): (t1,t2,t3,t4,t5)
