@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from numpy.lib.twodim_base import mask_indices
 
 from const import NE, NR, TEST_SIZE, TRAIN_SIZE, VAL_SIZE
 from utils import Scope, scatter_update_tensor, set_gpu, write_graph
@@ -108,13 +107,16 @@ class AdaE(object):
             neg_t_e = tf.nn.embedding_lookup(self.emb_e,
                                              neg_t_e,
                                              name="neg_t_e")
+            # l2 normalization
+            pos_h_e = tf.nn.l2_normalize(pos_h_e, axis=1)
+            pos_r_e = tf.nn.l2_normalize(pos_r_e, axis=1)
+            pos_t_e = tf.nn.l2_normalize(pos_t_e, axis=1)
+            neg_h_e = tf.nn.l2_normalize(neg_h_e, axis=1)
+            neg_r_e = tf.nn.l2_normalize(neg_r_e, axis=1)
+            neg_t_e = tf.nn.l2_normalize(neg_t_e, axis=1)
 
-            dis_pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e)**2,
-                                    1,
-                                    keep_dims=True)
-            dis_neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e)**2,
-                                    1,
-                                    keep_dims=True)
+            dis_pos = tf.norm(pos_h_e + pos_r_e - pos_t_e, 2, keep_dims=True)
+            dis_neg = tf.norm(neg_h_e + neg_r_e - neg_t_e, 2, keep_dims=True)
             return dis_pos, dis_neg
 
     def ic_emb(self, e1_emb, rel_emb, training):
@@ -334,9 +336,9 @@ class AdaExport(object):
         self._build_ph()
         self._build_train()
         self._build_summary()
+        self._build_summary_gards()
         # must be the last
         self._build_print_data()
-
         self._build_init()
 
     def _build_init(self):
@@ -583,33 +585,29 @@ class AdaExport(object):
                         tf.ones_like(label, dtype=tf.float32))
                     d["label"] = label
 
-                    ents = tf.range(0,
-                                    self.NE,
-                                    dtype=tf.int64,
-                                    name="ents")
+                    ents = tf.range(0, self.NE, dtype=tf.int64, name="ents")
                     pos_label_num = tf.cast(tf.reduce_sum(label), tf.int64)
-                    pos_label = tf.boolean_mask(ents,
-                                                tf.cast(label, tf.bool))
-                    neg_label = tf.boolean_mask(
-                        ents, tf.cast(1 - label, tf.bool))
+                    pos_label = tf.boolean_mask(ents, tf.cast(label, tf.bool))
+                    neg_label = tf.boolean_mask(ents,
+                                                tf.cast(1 - label, tf.bool))
                     neg_label_num = tf.subtract(tf.cast(self.NE, tf.int64),
                                                 pos_label_num)
                     rand_idx = tf.cast(
                         tf.random.uniform((pos_label_num, ), 0,
-                                            tf.cast(neg_label_num,
-                                                    tf.float32)), tf.int64)
+                                          tf.cast(neg_label_num, tf.float32)),
+                        tf.int64)
                     neg_label = tf.gather(neg_label, rand_idx)
 
                     hrs = tf.broadcast_to(d["input"], (pos_label_num, 2))
                     pos_labels = tf.expand_dims(pos_label, axis=1)
                     triple = tf.concat((hrs, pos_labels),
-                                        axis=1,
-                                        name="triple")
+                                       axis=1,
+                                       name="triple")
 
                     neg_labels = tf.expand_dims(neg_label, axis=1)
                     neg_triple = tf.concat((hrs, neg_labels),
-                                            axis=1,
-                                            name="neg_triple")
+                                           axis=1,
+                                           name="neg_triple")
 
                     d["triple"] = tf.RaggedTensor.from_tensor(
                         tf.expand_dims(triple, axis=0), name="triple_trn")
@@ -631,9 +629,9 @@ class AdaExport(object):
             #                                   _transform,
             #                                   num_parallel_calls=16)
             dataset_trn = dataset_trn.map(_parse_function_trn,
-                                            num_parallel_calls=16).map(
-                                                _transform2,
-                                                num_parallel_calls=16)
+                                          num_parallel_calls=16).map(
+                                              _transform2,
+                                              num_parallel_calls=16)
 
             iterator_trn = dataset_trn.take(self.train_size).shuffle(
                 tf.cast((tf.cast(self.train_size, tf.float32) * 1.2),
@@ -725,8 +723,9 @@ class AdaExport(object):
                     pos_label_num = tf.cast(tf.shape(label)[0], tf.int64)
                     neg_label = tf.boolean_mask(
                         ents, tf.cast(1 - aux_label, tf.bool))
-                    neg_label_num = tf.subtract(tf.cast(self.NE, tf.int64),
-                                                tf.cast(tf.reduce_sum(aux_label), tf.int64))
+                    neg_label_num = tf.subtract(
+                        tf.cast(self.NE, tf.int64),
+                        tf.cast(tf.reduce_sum(aux_label), tf.int64))
                     rand_idx = tf.cast(
                         tf.random.uniform((pos_label_num, ), 0,
                                           tf.cast(neg_label_num, tf.float32)),
@@ -758,9 +757,9 @@ class AdaExport(object):
             #                                   _transform,
             #                                   num_parallel_calls=16)
             dataset_dev = dataset_dev.map(_parse_function_dev,
-                                            num_parallel_calls=16).map(
-                                                _transform2,
-                                                num_parallel_calls=16)
+                                          num_parallel_calls=16).map(
+                                              _transform2,
+                                              num_parallel_calls=16)
             iterator_dev = dataset_dev.take(dev_size).batch(
                 batch_size, drop_remainder=True).prefetch(
                     batch_size).make_initializable_iterator()
@@ -805,9 +804,9 @@ class AdaExport(object):
             self.loss_adae = tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
                 multi_class_labels=labels, logits=logits, label_smoothing=0.1),
                                            name="loss_adae")
-            self.loss_margin = tf.reduce_sum(tf.maximum(
+            self.loss_margin = tf.reduce_mean(tf.maximum(
                 dis_pos - dis_neg + margin, 0),
-                                             name="loss_margin")
+                                              name="loss_margin")
             self.loss = tf.add(self.loss_adae, self.loss_margin, name="loss")
 
     def _build_optimizer(self):
@@ -816,33 +815,52 @@ class AdaExport(object):
                                            dtype=tf.int64,
                                            trainable=False,
                                            name='global_step')
-            # self.lr = tf.placeholder_with_default(0.001, [], name='lr')
-            self.optimize = tf.train.AdamOptimizer(self.lr).minimize(
-                self.loss, self.global_step, name="optimize")
+            # self.optimize = tf.train.AdamOptimizer(self.lr).minimize(
+            #     self.loss, self.global_step, name="optimize")
+            self.optimizer = tf.train.AdamOptimizer(self.lr)
+            self.grads_and_vars = self.optimizer.compute_gradients(self.loss)
+            with tf.control_dependencies(
+                [tf.add(tf.constant(1, dtype=tf.int64), self.global_step)]):
+                self.optimize = self.optimizer.apply_gradients(
+                    self.grads_and_vars, name="optimize")
 
-            self.optimize_sgd = tf.train.GradientDescentOptimizer(
-                self.lr).minimize(self.loss,
-                                  self.global_step,
-                                  name="optimize_sgd")
+            self.optimizer_sgd = tf.train.GradientDescentOptimizer(self.lr)
+            self.grads_and_vars = self.optimizer_sgd.compute_gradients(
+                self.loss)
+            with tf.control_dependencies(
+                [tf.add(tf.constant(1, dtype=tf.int64), self.global_step)]):
+                self.optimize_sgd = self.optimizer_sgd.apply_gradients(
+                    self.grads_and_vars, name="optimize_sgd")
 
     def _build_summary(self):
         with tf.name_scope('summaries'):
             loss_s = tf.summary.scalar('loss/loss', self.loss)
-            hloss_s = tf.summary.histogram('histogram loss', self.loss)
+            # hloss_s = tf.summary.histogram('histogram loss', self.loss)
 
             loss_adae_s = tf.summary.scalar('loss/adae', self.loss_adae)
-            loss_margin_s = tf.summary.scalar('loss/margin',
-                                                 self.loss_margin)
+            loss_margin_s = tf.summary.scalar('loss/margin', self.loss_margin)
             self.summary_op = tf.summary.merge(
-                [loss_s, hloss_s, loss_adae_s, loss_margin_s],
-                name="summary_op")
+                [loss_s, loss_adae_s, loss_margin_s], name="summary_op")
 
-            # rank_s = tf.summary.scalar('rank', self.rank_val)
-            # hit1_s = tf.summary.scalar('hit1', self.hits1_val)
-            # hit3_s = tf.summary.scalar('hit3', self.hits3_val)
-            # hit10_s = tf.summary.scalar('hit10', self.hits10_val)
-            # self.summary_val_op = tf.summary.merge(
-            #     [rank_s, hit1_s, hit3_s, hit10_s], name="summary_val_op")
+            self.ph_rank_val = tf.placeholder(tf.float32, (), "rank_val")
+            self.ph_hit1_val = tf.placeholder(tf.float32, (), "hit1_val")
+            self.ph_hit3_val = tf.placeholder(tf.float32, (), "hit3_val")
+            self.ph_hit10_val = tf.placeholder(tf.float32, (), "hit10_val")
+            rank_s = tf.summary.scalar('rank', self.ph_rank_val)
+            hit1_s = tf.summary.scalar('hit1', self.ph_hit1_val)
+            hit3_s = tf.summary.scalar('hit3', self.ph_hit3_val)
+            hit10_s = tf.summary.scalar('hit10', self.ph_hit10_val)
+            self.summary_val_op = tf.summary.merge(
+                [rank_s, hit1_s, hit3_s, hit10_s], name="summary_val_op")
+
+    def _build_summary_gards(self):
+        with tf.name_scope('gradients'):
+            summaries = []
+            for grad, var in self.grads_and_vars:
+                if grad is not None:
+                    summaries.append(tf.summary.histogram(var.op.name, grad))
+            self.summary_grads = tf.summary.merge(summaries,
+                                                  name="summary_grads_op")
 
     #TODO: export sorted_idx or pred_ents
     def _build_eval(self,

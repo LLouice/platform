@@ -224,7 +224,9 @@ def parse_cli():
         help="experiment name",
         default="default",
     )
-    parser.add_argument('--use_pretrained', help="use pretrained w2v embeddings", action="store_true")
+    parser.add_argument('--use_pretrained',
+                        help="use pretrained w2v embeddings",
+                        action="store_true")
     parser.add_argument('--use_transe', help="use transe", action="store_true")
     parser.add_argument('--debug', help="debug mode", action="store_true")
 
@@ -267,8 +269,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
 
     ph_pretrained_embeddings = graph.get_tensor_by_name(
         "custom/pretrained_embeddings:0")
-    ph_use_transe = graph.get_tensor_by_name(
-        "custom/use_transe:0")
+    ph_use_transe = graph.get_tensor_by_name("custom/use_transe:0")
     # dataset
     op_batch_data_trn_init = graph.get_operation_by_name(
         "data_trn/dataset_trn/MakeIterator")
@@ -340,8 +341,14 @@ def run(train_config: TrainConfig) -> Result[None, str]:
 
     # summary
     op_summary = graph.get_operation_by_name("summaries/summary_op/summary_op")
-    # op_val_summary = graph.get_operation_by_name(
-    #     "summaries/summary_val_op/summary_val_op")
+    op_val_summary = graph.get_operation_by_name(
+        "summaries/summary_val_op/summary_val_op")
+    op_grads_summary = graph.get_operation_by_name(
+        "gradients/summary_grads_op//summary_grads_op")
+    ph_rank_val = graph.get_tensor_by_name("summaries/rank_val")
+    ph_hit1_val = graph.get_tensor_by_name("summaries/hit1_val")
+    ph_hit3_val = graph.get_tensor_by_name("summaries/hit3_val")
+    ph_hit10_val = graph.get_tensor_by_name("summaries/hit10_val")
 
     # feed config data
     feed_dict = {
@@ -447,18 +454,17 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         hit3 = sum(hit3s) / len(hit3s)
         hit10 = sum(hit10s) / len(hit10s)
 
-        # rank_s = tf.summary.scalar("rank", rank)
-        # hit1_s = tf.summary.scalar("hit1", hit1)
-        # hit3_s = tf.summary.scalar("hit3", hit3)
-        # hit10_s = tf.summary.scalar("hit10", hit10)
-        # op_summary = tf.summary.merge([rank_s, hit1_s, hit3_s, hit10_s],
-        #                               name="summary_val_op")
-        # summaries = session.run(op_summary)
-        # writer.add_summary(summaries, global_step)
+        summaries = session.run(op_val_summary,
+                                feed_dict={
+                                    ph_rank_val: rank,
+                                    ph_hit1_val: hit1,
+                                    ph_hit3_val: hit3,
+                                    ph_hit10_val: hit10,
+                                })
+        writer.add_summary(summaries, global_step)
 
         value = EvalValue(rank, hit1, hit3, hit10)
         logger.info(value)
-
         return value
 
     # train
@@ -477,11 +483,11 @@ def run(train_config: TrainConfig) -> Result[None, str]:
             total_loss_adae = 0.
             total_loss_margin = 0.
             for _ in range(steps):
-                loss, loss_adae, loss_margin, summaries, global_step, _ = session.run(
+                loss, loss_adae, loss_margin, summaries, summaries_grads, global_step, _ = session.run(
                     [
                         t_loss, t_loss_adae, t_loss_margin,
-                        op_summary.outputs[0], op_global_step.outputs[0],
-                        op_optimize
+                        op_summary.outputs[0], op_grads_summary.outputs[0],
+                        op_global_step.outputs[0], op_optimize
                     ], )
                 # feed_dict={ph_batch_size_dev: np.int64(batch_size_dev)})
                 total_loss += loss
@@ -489,6 +495,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
                 total_loss_margin += loss_margin
                 # write summary
                 writer.add_summary(summaries, global_step)
+                writer.add_summary(summaries_grads, global_step)
 
             loss = total_loss / steps
             loss_adae = total_loss_adae / steps
