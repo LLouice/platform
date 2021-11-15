@@ -819,16 +819,20 @@ class AdaExport(object):
             #     self.loss, self.global_step, name="optimize")
             self.optimizer = tf.train.AdamOptimizer(self.lr)
             self.grads_and_vars = self.optimizer.compute_gradients(self.loss)
-            with tf.control_dependencies(
-                [tf.add(tf.constant(1, dtype=tf.int64), self.global_step)]):
+            with tf.control_dependencies([
+                    tf.assign_add(self.global_step,
+                                   tf.constant(1, dtype=tf.int64))
+            ]):
                 self.optimize = self.optimizer.apply_gradients(
                     self.grads_and_vars, name="optimize")
 
             self.optimizer_sgd = tf.train.GradientDescentOptimizer(self.lr)
             self.grads_and_vars = self.optimizer_sgd.compute_gradients(
                 self.loss)
-            with tf.control_dependencies(
-                [tf.add(tf.constant(1, dtype=tf.int64), self.global_step)]):
+            with tf.control_dependencies([
+                    tf.assign_add(self.global_step,
+                                   tf.constant(1, dtype=tf.int64))
+            ]):
                 self.optimize_sgd = self.optimizer_sgd.apply_gradients(
                     self.grads_and_vars, name="optimize_sgd")
 
@@ -859,6 +863,8 @@ class AdaExport(object):
             for grad, var in self.grads_and_vars:
                 if grad is not None:
                     summaries.append(tf.summary.histogram(var.op.name, grad))
+                    summaries.append(
+                        tf.summary.scalar(var.op.name, tf.norm(grad, 2)))
             self.summary_grads = tf.summary.merge(summaries,
                                                   name="summary_grads_op")
 

@@ -344,11 +344,11 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     op_val_summary = graph.get_operation_by_name(
         "summaries/summary_val_op/summary_val_op")
     op_grads_summary = graph.get_operation_by_name(
-        "gradients/summary_grads_op//summary_grads_op")
-    ph_rank_val = graph.get_tensor_by_name("summaries/rank_val")
-    ph_hit1_val = graph.get_tensor_by_name("summaries/hit1_val")
-    ph_hit3_val = graph.get_tensor_by_name("summaries/hit3_val")
-    ph_hit10_val = graph.get_tensor_by_name("summaries/hit10_val")
+        "gradients/summary_grads_op/summary_grads_op")
+    ph_rank_val = graph.get_tensor_by_name("summaries/rank_val:0")
+    ph_hit1_val = graph.get_tensor_by_name("summaries/hit1_val:0")
+    ph_hit3_val = graph.get_tensor_by_name("summaries/hit3_val:0")
+    ph_hit10_val = graph.get_tensor_by_name("summaries/hit10_val:0")
 
     # feed config data
     feed_dict = {
@@ -454,7 +454,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         hit3 = sum(hit3s) / len(hit3s)
         hit10 = sum(hit10s) / len(hit10s)
 
-        summaries = session.run(op_val_summary,
+        summaries = session.run(op_val_summary.outputs[0],
                                 feed_dict={
                                     ph_rank_val: rank,
                                     ph_hit1_val: hit1,
@@ -482,20 +482,29 @@ def run(train_config: TrainConfig) -> Result[None, str]:
             total_loss = 0.
             total_loss_adae = 0.
             total_loss_margin = 0.
-            for _ in range(steps):
-                loss, loss_adae, loss_margin, summaries, summaries_grads, global_step, _ = session.run(
-                    [
-                        t_loss, t_loss_adae, t_loss_margin,
-                        op_summary.outputs[0], op_grads_summary.outputs[0],
-                        op_global_step.outputs[0], op_optimize
-                    ], )
+            for i in range(steps):
+                if i == 0:
+                    loss, loss_adae, loss_margin, summaries, summaries_grads, global_step, _ = session.run(
+                        [
+                            t_loss, t_loss_adae, t_loss_margin,
+                            op_summary.outputs[0], op_grads_summary.outputs[0],
+                            op_global_step.outputs[0], op_optimize
+                        ], )
+                    writer.add_summary(summaries_grads, global_step)
+                else:
+                    loss, loss_adae, loss_margin, summaries, global_step, _ = session.run(
+                        [
+                            t_loss, t_loss_adae, t_loss_margin,
+                            op_summary.outputs[0], op_global_step.outputs[0],
+                            op_optimize
+                        ], )
+
                 # feed_dict={ph_batch_size_dev: np.int64(batch_size_dev)})
                 total_loss += loss
                 total_loss_adae += loss_adae
                 total_loss_margin += loss_margin
-                # write summary
+
                 writer.add_summary(summaries, global_step)
-                writer.add_summary(summaries_grads, global_step)
 
             loss = total_loss / steps
             loss_adae = total_loss_adae / steps

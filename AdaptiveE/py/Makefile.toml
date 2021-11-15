@@ -15,8 +15,13 @@ dependencies = ["fetch_train"]
 
 [tasks.smoke]
 command = "python"
-args = ['train.py', "--visible_device_list", "0", '-e', '10', '--train_size', '16', '--val_size', '16', '--test_size', '16', '-I', '1', "--use_pretrained", "--use_transe"]
-dependencies = ["fetch_train"]
+args = ['train.py', "--visible_device_list", "2", '-e', '10', '--train_size', '16', '--val_size', '16', '--test_size', '16', '-I', '1', "--use_pretrained", "--use_transe"]
+dependencies = ["fetch_train", "clean_default"]
+
+
+[tasks.clean_default]
+command = "rm"
+args = ["-rf", "logs/default"]
 
 
 [tasks.ismoke]
@@ -27,8 +32,13 @@ dependencies = ["fetch_train"]
 
 [tasks.transe]
 command = "python"
-args = ["train.py", "--visible_device_list", "3", "--batch_size_trn", "400", "--batch_size_dev", "4000", "-e", "5000", "-I", "50", "--lr", "0.0003", "--ex", "transe", "${@}", "--use_pretrained", "--use_transe"]
-dependencies = ["fetch_train"]
+args = ["train.py", "--visible_device_list", "2", "--batch_size_trn", "400", "--batch_size_dev", "4000", "-e", "5000", "-I", "50", "--lr", "0.0003", "--ex", "transe", "${@}", "--use_pretrained", "--use_transe"]
+dependencies = ["fetch_train", "clean_transe"]
+
+
+[tasks.clean_transe]
+command = "rm"
+args = ["-rf", "logs/transe"]
 
 
 [tasks.first]
