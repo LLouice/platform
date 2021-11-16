@@ -536,6 +536,7 @@ class Export(object):
         self._build_train()
         self._build_summary()
         self._build_summary_gards()
+        self._build_summary_weights()
         # must be the last
         # self._build_print_data()
         self._build_init()
@@ -1086,6 +1087,19 @@ class Export(object):
                         tf.summary.scalar(var.op.name, tf.norm(grad, 2)))
             self.summary_grads = tf.summary.merge(summaries,
                                                   name="summary_grads_op")
+
+    def _build_summary_weights(self):
+        with tf.name_scope('weights'):
+            summaries = []
+            for var in tf.global_variables():
+                if "forward" in var.op.name and "Adam" not in var.op.name:
+                    var_name = var.op.name[8:]
+                    print(var_name, var.dtype)
+                    summaries.append(tf.summary.histogram(var_name, var))
+                    summaries.append(
+                        tf.summary.scalar(var_name, tf.norm(var, 2)))
+            self.summary_weights = tf.summary.merge(summaries,
+                                                    name="summary_weights_op")
 
     #TODO: export sorted_idx or pred_ents
     def _build_eval(self,

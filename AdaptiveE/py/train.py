@@ -354,6 +354,9 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         "summaries/summary_val_op/summary_val_op")
     op_grads_summary = graph.get_operation_by_name(
         "gradients/summary_grads_op/summary_grads_op")
+    op_weights_summary = graph.get_operation_by_name(
+        "weights/summary_weights_op/summary_weights_op")
+
     ph_rank_val = graph.get_tensor_by_name("summaries/rank_val:0")
     ph_hit1_val = graph.get_tensor_by_name("summaries/hit1_val:0")
     ph_hit3_val = graph.get_tensor_by_name("summaries/hit3_val:0")
@@ -494,13 +497,15 @@ def run(train_config: TrainConfig) -> Result[None, str]:
             total_loss_margin = 0.
             for i in range(steps):
                 if i == 0:
-                    loss, loss_model, loss_margin, summaries, summaries_grads, global_step, _ = session.run(
+                    loss, loss_model, loss_margin, summaries, summaries_grads, summaries_weights, global_step, _ = session.run(
                         [
                             t_loss, t_loss_model, t_loss_margin,
                             op_summary.outputs[0], op_grads_summary.outputs[0],
+                            op_weights_summary.outputs[0],
                             op_global_step.outputs[0], op_optimize
                         ], )
                     writer.add_summary(summaries_grads, global_step)
+                    writer.add_summary(summaries_weights, global_step)
                 else:
                     loss, loss_model, loss_margin, summaries, global_step, _ = session.run(
                         [
