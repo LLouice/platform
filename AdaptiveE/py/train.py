@@ -54,6 +54,7 @@ class TrainConfig:
     ckpt_dir: str = "checkpoints"
     ckpt: Optional[str] = None
     ex: str = "default"
+    model_name: str = "AdaE"
     use_pretrained: bool = False
     use_transe: bool = False
     debug: bool = False
@@ -77,6 +78,7 @@ class TrainConfig:
                self.ckpt_dir, \
                self.ckpt, \
                self.ex, \
+               self.model_name, \
                self.use_pretrained, \
                self.use_transe, \
                self.debug,
@@ -115,6 +117,7 @@ class TrainConfig:
                 args.ckpt_dir, \
                 args.ckpt, \
                 args.ex, \
+                args.model_name, \
                 args.use_pretrained, \
                 args.use_transe, \
                 args.debug,
@@ -134,12 +137,12 @@ class Ckpt:
     @classmethod
     def from_str(cls, s: str) -> Result[Ckpt, Exception]:
         try:
-            rank, loss, epoch, step = s[:s.rfind('.')].strip().split("_")
+            rank, loss, epoch, step = s[:s.rfind('.')].strip().split("_")[1::2]
             rank = float(rank)
             loss = float(loss)
             epoch = int(epoch)
             step = int(step)
-            return cls(rank, loss, epoch, step)
+            return Ok(cls(rank, loss, epoch, step))
         except Exception as e:
             return Err(e)
 
@@ -224,6 +227,12 @@ def parse_cli():
         help="experiment name",
         default="default",
     )
+    parser.add_argument(
+        "-M",
+        "--model_name",
+        choices=["AdaE", "ConvE"],
+        default="AdaE",
+    )
     parser.add_argument('--use_pretrained',
                         help="use pretrained w2v embeddings",
                         action="store_true")
@@ -240,14 +249,14 @@ def load_pretrained_embeddings():
 
 
 def run(train_config: TrainConfig) -> Result[None, str]:
-    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, _ex, use_pretrained, use_transe, debug_mode = train_config.destruct(
+    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, ex, model_name, use_pretrained, use_transe, debug_mode = train_config.destruct(
     )
 
     config_proto = build_config_proto(visible_device_list,
                                       log_device_placement)
 
     # build network
-    build_graph()
+    build_graph(model_name=model_name, use_transe2=use_transe)
 
     session = tf.Session(config=config_proto)
     graph = session.graph
@@ -277,12 +286,12 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     op_batch_data_trn = graph.get_operation_by_name(
         "data_trn/dataset_trn/get_next")
 
-    op_batch_data_trn_print = graph.get_operation_by_name(
-        "print_data_trn/print")
-    op_batch_data_val_print = graph.get_operation_by_name(
-        "print_data_val/print")
-    op_batch_data_test_print = graph.get_operation_by_name(
-        "print_data_test/print")
+    # op_batch_data_trn_print = graph.get_operation_by_name(
+    #     "print_data_trn/print")
+    # op_batch_data_val_print = graph.get_operation_by_name(
+    #     "print_data_val/print")
+    # op_batch_data_test_print = graph.get_operation_by_name(
+    #     "print_data_test/print")
 
     ph_trn_record_path = graph.get_tensor_by_name(
         "data_trn/dataset_trn/Const:0")
@@ -318,7 +327,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
 
     op_global_step = graph.get_operation_by_name("optimizer/global_step")
     t_loss = graph.get_tensor_by_name("loss/loss:0")
-    t_loss_adae = graph.get_tensor_by_name("loss/loss_adae:0")
+    t_loss_model = graph.get_tensor_by_name("loss/loss_model:0")
     t_loss_margin = graph.get_tensor_by_name("loss/loss_margin:0")
 
     # eval op
@@ -385,7 +394,8 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         print(repeat_num)
         for _ in range(epochs):
             for _ in range(steps):
-                session.run(op_batch_data_trn_print)
+                pass
+                # session.run(op_batch_data_trn_print)
                 # session.run(op_batch_data_val_print)
                 # session.run(op_batch_data_test_print)
                 # print("===>", res.shape)
@@ -395,12 +405,12 @@ def run(train_config: TrainConfig) -> Result[None, str]:
             # break
 
     def save(ckpt: Ckpt):
-        ckpt_path = f"{ckpt_dir}/{ckpt}"
+        ckpt_path = f"{ckpt_dir}/{ex}/{ckpt}"
         session.run(op_save, feed_dict={ph_file_path: ckpt_path})
 
     def restore(ckpt):
         init()
-        ckpt_path = f"{ckpt_dir}/{ckpt}"
+        ckpt_path = f"{ckpt_dir}/{ex}/{ckpt}"
         op_load = graph.get_operation_by_name("save/restore_all")
         session.run(op_load, feed_dict={ph_file_path: ckpt_path})
 
@@ -480,37 +490,37 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         global_step = 0
         for e in range(epoch_start, epochs + 1):
             total_loss = 0.
-            total_loss_adae = 0.
+            total_loss_model = 0.
             total_loss_margin = 0.
             for i in range(steps):
                 if i == 0:
-                    loss, loss_adae, loss_margin, summaries, summaries_grads, global_step, _ = session.run(
+                    loss, loss_model, loss_margin, summaries, summaries_grads, global_step, _ = session.run(
                         [
-                            t_loss, t_loss_adae, t_loss_margin,
+                            t_loss, t_loss_model, t_loss_margin,
                             op_summary.outputs[0], op_grads_summary.outputs[0],
                             op_global_step.outputs[0], op_optimize
                         ], )
                     writer.add_summary(summaries_grads, global_step)
                 else:
-                    loss, loss_adae, loss_margin, summaries, global_step, _ = session.run(
+                    loss, loss_model, loss_margin, summaries, global_step, _ = session.run(
                         [
-                            t_loss, t_loss_adae, t_loss_margin,
+                            t_loss, t_loss_model, t_loss_margin,
                             op_summary.outputs[0], op_global_step.outputs[0],
                             op_optimize
                         ], )
 
                 # feed_dict={ph_batch_size_dev: np.int64(batch_size_dev)})
                 total_loss += loss
-                total_loss_adae += loss_adae
+                total_loss_model += loss_model
                 total_loss_margin += loss_margin
 
                 writer.add_summary(summaries, global_step)
 
             loss = total_loss / steps
-            loss_adae = total_loss_adae / steps
+            loss_model = total_loss_model / steps
             loss_margin = total_loss_margin / steps
             logger.info(
-                f"[{e}] loss: {loss}\tloss_adae: {loss_adae}\tloss_margin: {loss_margin}"
+                f"[{e}] loss: {loss}\tloss_model: {loss_model}\tloss_margin: {loss_margin}"
             )
 
             if e % eval_interval == 0:

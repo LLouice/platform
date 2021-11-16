@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 import tensorflow as tf
 
@@ -52,12 +54,12 @@ class AdaE(object):
             self.emb_e = tf.get_variable(
                 'emb_e',
                 shape=[self.NE, self.E],
-                initializer=tf.glorot_uniform_initializer())
+                initializer=tf.glorot_normal_initializer())
 
             self.emb_rel = tf.get_variable(
                 'emb_r',
                 shape=[self.NR, self.E],
-                initializer=tf.glorot_uniform_initializer())
+                initializer=tf.glorot_normal_initializer())
 
             if pretrained_embeddings is not None:
                 e_emb_extra = tf.nn.embedding_lookup(
@@ -200,18 +202,18 @@ class AdaE(object):
                 dis_pos = 0
                 dis_neg = 1.
 
-            e1_emb, rel_emb = self.ic_emb(e1_emb, rel_emb, training)
+            # e1_emb, rel_emb = self.ic_emb(e1_emb, rel_emb, training)
             A = self.make_ada_adj()
             x = self.e1_rel_gcn(e1_emb, rel_emb, A)
 
             x = tf.nn.relu(x)
-            x = self.ic_hid(x, training)
+            # x = self.ic_hid(x, training)
             x = tf.layers.flatten(x, name="flatten")  # b, 2E, C -> b,2E*C
 
             x = tf.nn.relu(x)
             x = self.fc(x)
 
-            x = self.ic_last(x, training)
+            # x = self.ic_last(x, training)
             # bs E  E, N -> bs, N
             with Scope("pred", prefix=scope.prefix,
                        reuse=self.reuse) as scope_pred:
@@ -270,6 +272,190 @@ class GCN(object):
         return h
 
 
+class ConvE(object):
+    def __init__(
+        self,
+        NE,
+        NR,
+        E,
+        H,
+        C=32,
+        inp_dp=0.2,
+        hid_dp=0.2,
+        last_dp=0.3,
+        prefix="",
+        reuse=None,
+    ):
+        super().__init__()
+        self.NE = NE
+        self.NR = NR
+        self.E = E
+        self.EH = H
+        self.EW = E // H
+        self.C = C
+        self.inp_dp = inp_dp
+        self.hid_dp = hid_dp
+        self.last_dp = last_dp
+        self.prefix = prefix
+        self.reuse = reuse
+
+        self.path = f"{prefix}ConvE/"
+
+    def embedding_lookup(self, e1, rel, pretrained_embeddings=None):
+        # [NE, E] - lookup -> [bs, E] -> [bs, E, 1]
+        with Scope("embedding_lookup", prefix=self.path, reuse=self.reuse):
+            self.emb_e = tf.get_variable(
+                'emb_e',
+                shape=[self.NE, self.E],
+                initializer=tf.glorot_normal_initializer())
+
+            self.emb_rel = tf.get_variable(
+                'emb_r',
+                shape=[self.NR, self.E],
+                initializer=tf.glorot_normal_initializer())
+
+            if pretrained_embeddings is not None:
+                e_emb_extra = tf.nn.embedding_lookup(
+                    pretrained_embeddings, e1, name="e1_pretrained_embedding")
+                e1_emb = tf.reshape(
+                    tf.add(
+                        e_emb_extra,
+                        tf.nn.embedding_lookup(self.emb_e,
+                                               e1,
+                                               name="e1_embedding")),
+                    [-1, self.EH, self.EW, 1])
+            else:
+                e1_emb = tf.reshape(
+                    tf.nn.embedding_lookup(self.emb_e, e1,
+                                           name="e1_embedding"),
+                    [-1, self.EH, self.EW, 1])
+
+            rel_emb = tf.reshape(
+                tf.nn.embedding_lookup(self.emb_rel, rel,
+                                       name="rel_embedding"),
+                [-1, self.EH, self.EW, 1])
+        return e1_emb, rel_emb
+
+    def conv(self, x):
+        conv = tf.layers.Conv2D(self.C, kernel_size=(3, 3))
+        return conv(x)
+
+    def transe(self, triple, neg_triple):
+        with Scope("transe", prefix=self.path, reuse=self.reuse):
+            pos_h_e = triple[0]
+            pos_r_e = triple[1]
+            pos_t_e = triple[2]
+            neg_h_e = neg_triple[0]
+            neg_r_e = neg_triple[1]
+            neg_t_e = neg_triple[2]
+
+            pos_h_e = tf.nn.embedding_lookup(self.emb_e,
+                                             pos_h_e,
+                                             name="pos_h_e")
+            pos_r_e = tf.nn.embedding_lookup(self.emb_rel,
+                                             pos_r_e,
+                                             name="pos_rel_e")
+            pos_t_e = tf.nn.embedding_lookup(self.emb_e,
+                                             pos_t_e,
+                                             name="pos_t_e")
+            neg_h_e = tf.nn.embedding_lookup(self.emb_e,
+                                             neg_h_e,
+                                             name="neg_h_e")
+            neg_r_e = tf.nn.embedding_lookup(self.emb_rel,
+                                             neg_r_e,
+                                             name="neg_rel_e")
+            neg_t_e = tf.nn.embedding_lookup(self.emb_e,
+                                             neg_t_e,
+                                             name="neg_t_e")
+            # l2 normalization
+            pos_h_e = tf.nn.l2_normalize(pos_h_e, axis=1)
+            pos_r_e = tf.nn.l2_normalize(pos_r_e, axis=1)
+            pos_t_e = tf.nn.l2_normalize(pos_t_e, axis=1)
+            neg_h_e = tf.nn.l2_normalize(neg_h_e, axis=1)
+            neg_r_e = tf.nn.l2_normalize(neg_r_e, axis=1)
+            neg_t_e = tf.nn.l2_normalize(neg_t_e, axis=1)
+
+            dis_pos = tf.norm(pos_h_e + pos_r_e - pos_t_e, 2, keep_dims=True)
+            dis_neg = tf.norm(neg_h_e + neg_r_e - neg_t_e, 2, keep_dims=True)
+            return dis_pos, dis_neg
+
+    def ic_emb(self, x, training):
+        with Scope("ic_emb", prefix=self.path, reuse=self.reuse):
+            self.bn = tf.layers.BatchNormalization(axis=-1, name="bn_inp")
+            self.dp = tf.layers.Dropout(rate=self.inp_dp, name="dp_inp")
+            x = self.dp(self.bn(x, training=training), training=training)
+        return x
+
+    def ic_hid(self, x, training):
+        with Scope("ic_hid", prefix=self.path, reuse=self.reuse):
+            self.dp_hid = tf.layers.Dropout(rate=self.hid_dp)
+            self.bn_hid = tf.layers.BatchNormalization(axis=-1)
+            x = self.dp_hid(self.bn_hid(x, training=training),
+                            training=training)
+        return x
+
+    def fc(self, x):
+        # 2*E*C -> E
+        return tf.layers.dense(
+            x,
+            self.E,
+            activation=tf.nn.relu,
+            use_bias=True,
+            kernel_initializer=tf.glorot_normal_initializer(),
+            bias_initializer=tf.zeros_initializer(),
+            name="fc")
+
+    def ic_last(self, x, training):
+        with Scope("ic_last", prefix=self.path, reuse=self.reuse):
+            self.bn_last = tf.layers.BatchNormalization(axis=-1)
+            self.dp_last = tf.layers.Dropout(rate=self.last_dp)
+            x = self.dp_last(self.bn_last(x, training=training),
+                             training=training)
+        return x
+
+    def __call__(self,
+                 e1,
+                 rel,
+                 training=False,
+                 pretrained_embeddings=None,
+                 triple=None,
+                 neg_triple=None):
+        with Scope("ConvE", prefix=self.prefix, reuse=self.reuse) as scope:
+            # [B, E] -> [B, EH, EW, 1]
+            e1_emb, rel_emb = self.embedding_lookup(e1, rel,
+                                                    pretrained_embeddings)
+
+            if triple is not None:
+                dis_pos, dis_neg = self.transe(triple, neg_triple)
+            else:
+                dis_pos = 0.
+                dis_neg = 1.
+
+            # [B, EH, EW, 1] -> [B, 2*EH, EW, 1]
+            x = tf.concat([e1_emb, rel_emb], axis=1)
+            x = self.ic_emb(x, training)
+            x = self.conv(x)  # [B, EH', EW', C]
+            x = tf.layers.BatchNormalization(axis=-1,
+                                             name="bn1")(x, training=training)
+            x = tf.nn.relu(x)
+            x = tf.layers.Dropout(rate=self.hid_dp)(x, training=training)
+            x = tf.layers.flatten(x, name="flatten")
+            # [B, E'] -> [B, E]
+            x = self.fc(x)
+            x = tf.layers.Dropout(rate=self.last_dp)(x, training=training)
+            x = tf.layers.BatchNormalization(axis=-1,
+                                             name="bn2")(x, training=training)
+            x = tf.nn.relu(x)
+            with Scope("pred", prefix=scope.prefix,
+                       reuse=self.reuse) as scope_pred:
+                x = tf.matmul(x, self.emb_e, transpose_b=True, name="mul_E")
+                self.b = tf.get_variable('bias',
+                                         shape=[self.NE],
+                                         initializer=tf.zeros_initializer())
+                x = tf.add(x, self.b, name="logits")
+        return x, dis_pos, dis_neg
+
+
 def test():
     set_gpu(3)
     # test_gcn()
@@ -321,16 +507,29 @@ def test_ada():
         print(y.shape)
 
 
-class AdaExport(object):
-    def __init__(self, NE, NR, E, C=32, v_dim=10, output_dir="export"):
+class Export(object):
+    def __init__(self,
+                 NE,
+                 NR,
+                 E,
+                 C=32,
+                 v_dim=10,
+                 output_dir="export",
+                 H=32,
+                 model_name="AdaE",
+                 use_transe2=False):
         super().__init__()
         self.NE = NE
         self.NR = NR
         self.E = E
         self.C = C
+        self.H = H
         self.v_dim = v_dim
 
-        self.output_dir = output_dir
+        self.output_dir = output_dir + f"/{model_name}"
+        self.model_name = model_name
+        self.use_transe2 = use_transe2
+        print(f"Export::use_transe2: {self.use_transe2}")
 
     def build(self):
         self._build_ph()
@@ -338,7 +537,7 @@ class AdaExport(object):
         self._build_summary()
         self._build_summary_gards()
         # must be the last
-        self._build_print_data()
+        # self._build_print_data()
         self._build_init()
 
     def _build_init(self):
@@ -458,8 +657,11 @@ class AdaExport(object):
                 self.repeat, batch_size=self.batch_size_trn)
             self.batch_data_trn = batch_data_trn
 
-            triple_trn = batch_data_trn["triple"].values.values
-            neg_triple_trn = batch_data_trn["neg_triple"].values.values
+            triple_trn = None
+            neg_triple_trn = None
+            if self.use_transe2:
+                triple_trn = batch_data_trn["triple"].values.values
+                neg_triple_trn = batch_data_trn["neg_triple"].values.values
 
             inp_trn = batch_data_trn["input"]
             inp_trn.set_shape((None, 2))
@@ -478,8 +680,11 @@ class AdaExport(object):
                 self.val_size, dev="val", batch_size=self.batch_size_dev)
             self.batch_data_val = batch_data_val
 
-            triple_val = batch_data_val["triple"].values.values
-            neg_triple_val = batch_data_val["neg_triple"].values.values
+            triple_val = None
+            neg_triple_val = None
+            if self.use_transe2:
+                triple_val = batch_data_val["triple"].values.values
+                neg_triple_val = batch_data_val["neg_triple"].values.values
 
             inp_val = batch_data_val["input"]
             inp_val.set_shape((None, 2))
@@ -502,8 +707,11 @@ class AdaExport(object):
                 self.test_size, dev="test", batch_size=self.batch_size_dev)
             self.batch_data_test = batch_data_test
 
-            triple_test = batch_data_test["triple"].values.values
-            neg_triple_test = batch_data_test["neg_triple"].values.values
+            triple_test = None
+            neg_triple_test = None
+            if self.use_transe2:
+                triple_test = batch_data_test["triple"].values.values
+                neg_triple_test = batch_data_test["neg_triple"].values.values
 
             inp_test = batch_data_test["input"]
             inp_test.set_shape((None, 2))
@@ -524,6 +732,7 @@ class AdaExport(object):
         self.saver = tf.train.Saver(tf.global_variables())
 
     def _build_train_dataset(self, repeat_num, batch_size=4):
+
         with tf.name_scope('dataset_trn'):
             dataset_trn = tf.data.TFRecordDataset("symptom_trn.tfrecord",
                                                   num_parallel_reads=16)
@@ -552,18 +761,6 @@ class AdaExport(object):
                                                   feature_description_trn)
 
             def _transform(d):
-                with tf.name_scope("transform"):
-                    zeros = tf.zeros(self.NE, name="zeros")
-                    label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
-                    d["num_label"] = tf.shape(label)
-                    label = scatter_update_tensor(
-                        zeros, tf.cast(tf.expand_dims(label, axis=1),
-                                       tf.int32),
-                        tf.ones_like(label, dtype=tf.float32))
-                    d["label"] = label
-                    return d
-
-            def _transform1(d):
                 with tf.name_scope("transform"):
                     zeros = tf.zeros(self.NE, name="zeros")
                     label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
@@ -624,14 +821,16 @@ class AdaExport(object):
 
                     return d
 
-            # dataset_trn = dataset_trn.map(_parse_function_trn,
-            #                               num_parallel_calls=16).map(
-            #                                   _transform,
-            #                                   num_parallel_calls=16)
+            if self.use_transe2:
+                print("use _transform2")
+                transform = _transform2
+            else:
+                print("use _transform")
+                transform = _transform
+
             dataset_trn = dataset_trn.map(_parse_function_trn,
                                           num_parallel_calls=16).map(
-                                              _transform2,
-                                              num_parallel_calls=16)
+                                              transform, num_parallel_calls=16)
 
             iterator_trn = dataset_trn.take(self.train_size).shuffle(
                 tf.cast((tf.cast(self.train_size, tf.float32) * 1.2),
@@ -752,14 +951,14 @@ class AdaExport(object):
                         tf.expand_dims(d["label"], axis=0))
                     return d
 
-            # dataset_dev = dataset_dev.map(_parse_function_dev,
-            #                               num_parallel_calls=16).map(
-            #                                   _transform,
-            #                                   num_parallel_calls=16)
+            if self.use_transe2:
+                transform = _transform2
+            else:
+                transform = _transform
+
             dataset_dev = dataset_dev.map(_parse_function_dev,
                                           num_parallel_calls=16).map(
-                                              _transform2,
-                                              num_parallel_calls=16)
+                                              transform, num_parallel_calls=16)
             iterator_dev = dataset_dev.take(dev_size).batch(
                 batch_size, drop_remainder=True).prefetch(
                     batch_size).make_initializable_iterator()
@@ -775,39 +974,59 @@ class AdaExport(object):
                        neg_triple=None):
         if training:
             with Scope("forward", reuse=reuse) as scope:
-                self.ada = AdaE(self.NE,
-                                self.NR,
-                                self.E,
-                                self.C,
-                                v_dim=self.v_dim,
-                                prefix=scope.prefix)
-                logits, dis_pos, dis_neg = self.ada(e1, rel, training,
-                                                    self.pretrained_embeddings,
-                                                    triple, neg_triple)
+                if self.model_name == "AdaE":
+                    print("model is AdaE")
+                    model = AdaE(self.NE,
+                                 self.NR,
+                                 self.E,
+                                 self.C,
+                                 v_dim=self.v_dim,
+                                 prefix=scope.prefix)
+                else:
+                    print("model is ConvE")
+                    model = ConvE(self.NE,
+                                  self.NR,
+                                  self.E,
+                                  self.H,
+                                  self.C,
+                                  prefix=scope.prefix)
+
+                logits, dis_pos, dis_neg = model(e1, rel, training,
+                                                 self.pretrained_embeddings,
+                                                 triple, neg_triple)
             return logits, dis_pos, dis_neg
         else:
             with Scope("forward", reuse=reuse) as scope:
-                self.ada = AdaE(self.NE,
-                                self.NR,
-                                self.E,
-                                self.C,
-                                v_dim=self.v_dim,
-                                reuse=True,
-                                prefix=scope.prefix)
-                logits, dis_pos, dis_neg = self.ada(e1, rel, training,
-                                                    self.pretrained_embeddings,
-                                                    triple, neg_triple)
+                if self.model_name == "AdaE":
+                    model = AdaE(self.NE,
+                                 self.NR,
+                                 self.E,
+                                 self.C,
+                                 v_dim=self.v_dim,
+                                 reuse=True,
+                                 prefix=scope.prefix)
+                else:
+                    model = ConvE(self.NE,
+                                  self.NR,
+                                  self.E,
+                                  self.H,
+                                  self.C,
+                                  reuse=True,
+                                  prefix=scope.prefix)
+                logits, dis_pos, dis_neg = model(e1, rel, training,
+                                                 self.pretrained_embeddings,
+                                                 triple, neg_triple)
             return logits, dis_pos, dis_neg
 
     def _build_loss(self, labels, logits, dis_pos, dis_neg, margin=1.0):
         with tf.name_scope('loss'):
-            self.loss_adae = tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
+            self.loss_model = tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
                 multi_class_labels=labels, logits=logits, label_smoothing=0.1),
-                                           name="loss_adae")
+                                            name="loss_model")
             self.loss_margin = tf.reduce_mean(tf.maximum(
                 dis_pos - dis_neg + margin, 0),
                                               name="loss_margin")
-            self.loss = tf.add(self.loss_adae, self.loss_margin, name="loss")
+            self.loss = tf.add(self.loss_model, self.loss_margin, name="loss")
 
     def _build_optimizer(self):
         with tf.name_scope('optimizer'):
@@ -821,7 +1040,7 @@ class AdaExport(object):
             self.grads_and_vars = self.optimizer.compute_gradients(self.loss)
             with tf.control_dependencies([
                     tf.assign_add(self.global_step,
-                                   tf.constant(1, dtype=tf.int64))
+                                  tf.constant(1, dtype=tf.int64))
             ]):
                 self.optimize = self.optimizer.apply_gradients(
                     self.grads_and_vars, name="optimize")
@@ -831,7 +1050,7 @@ class AdaExport(object):
                 self.loss)
             with tf.control_dependencies([
                     tf.assign_add(self.global_step,
-                                   tf.constant(1, dtype=tf.int64))
+                                  tf.constant(1, dtype=tf.int64))
             ]):
                 self.optimize_sgd = self.optimizer_sgd.apply_gradients(
                     self.grads_and_vars, name="optimize_sgd")
@@ -841,10 +1060,10 @@ class AdaExport(object):
             loss_s = tf.summary.scalar('loss/loss', self.loss)
             # hloss_s = tf.summary.histogram('histogram loss', self.loss)
 
-            loss_adae_s = tf.summary.scalar('loss/adae', self.loss_adae)
+            loss_model_s = tf.summary.scalar('loss/model', self.loss_model)
             loss_margin_s = tf.summary.scalar('loss/margin', self.loss_margin)
             self.summary_op = tf.summary.merge(
-                [loss_s, loss_adae_s, loss_margin_s], name="summary_op")
+                [loss_s, loss_model_s, loss_margin_s], name="summary_op")
 
             self.ph_rank_val = tf.placeholder(tf.float32, (), "rank_val")
             self.ph_hit1_val = tf.placeholder(tf.float32, (), "hit1_val")
@@ -1000,26 +1219,71 @@ class AdaExport(object):
         #                   self.output_dir,
         #                   'model.pb',
         #                   as_text=False)
-        write_graph("AdaExport")
+        write_graph(self.model_name)
 
 
-def build_graph(E: int = 512, C: int = 32, v_dim: int = 16) -> None:
-    ada_export = AdaExport(NE, NR, E, C, v_dim)
-    ada_export.build()
+def build_graph(E: int = 512,
+                C: int = 32,
+                v_dim: int = 16,
+                H: int = 32,
+                model_name: str = "AdaE",
+                use_transe2: bool = False) -> None:
+    print(f"build_graph:: model: {model_name} use_transe: {use_transe2}")
+    if model_name == "AdaE":
+        export = Export(NE,
+                        NR,
+                        E,
+                        C,
+                        v_dim,
+                        model_name=model_name,
+                        use_transe2=use_transe2)
+    else:
+        export = Export(NE,
+                        NR,
+                        E,
+                        C,
+                        H=H,
+                        model_name=model_name,
+                        use_transe2=use_transe2)
+    export.build()
 
 
-def export():
+def export(model_name="AdaE", use_transe2=False):
     set_gpu(1)
     NE = 28754
     NR = 10
     E = 512
     C = 32
     v_dim = 16
-    ada_export = AdaExport(NE, NR, E, C, v_dim)
-    ada_export.export()
+    H = 32
+
+    if model_name == "AdaE":
+        export = Export(NE,
+                        NR,
+                        E,
+                        C,
+                        v_dim,
+                        model_name=model_name,
+                        use_transe2=use_transe2)
+    else:
+        export = Export(NE,
+                        NR,
+                        E,
+                        C,
+                        H=H,
+                        model_name=model_name,
+                        use_transe2=use_transe2)
+
+    export.export()
 
 
 if __name__ == "__main__":
     # test()
-    # tf.reset_default_graph()
-    export()
+    if len(sys.argv) > 1:
+        model_name = sys.argv[1]
+        use_transe2 = False
+        if len(sys.argv) > 2:
+            use_transe2 = True
+        export(model_name, use_transe2)
+    else:
+        export()
