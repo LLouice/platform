@@ -1,3 +1,9 @@
+///! graph.rs is cli that transform neo4j raw triple txt to tfrecord dataset
+///! the processing is:
+///! (neo4j) graph.txt: 22028 5198 SYMPTOM_RELATE_DISEASE
+///! graph.txt - load_graph -> split_dataset -> graph_trn/val/test.txt
+///! graph_trn/val/test.txt - add_rev -> graph_trn/val/test_with_rev.txt
+///! gen_tfrecord:  symptom_trn/val/test.tfrecord <- map_to_tfrecord  <- get_hr_ts_maps - graph_trn/val/test_with_rev.txt
 use anyhow::Result;
 use clap::{App, Arg};
 use graph::prelude::*;
@@ -147,6 +153,7 @@ impl Kg {
         })
     }
 
+    /// print hr_ts_map_trn(val, test) size
     fn dataset_size() -> Result<()> {
         let [hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all] = Self::get_hr_ts_maps()?;
 
@@ -157,6 +164,12 @@ impl Kg {
         Ok(())
     }
 
+    /// separate all edges into trn/val/test_set(triple set) and write these set to graph_trn/val/test.txt
+    /// for splitting into corresponding ratio, use multinomial to generate [1., 0., 0.] / [0., 1., 0.1] / [0., 1., 0.1] to
+    /// decide trn/test/val dataset util reach to size
+    /// This function also check the constraint:
+    ///          1. trn/val/test_set not all disjoint
+    ///          2. trn_ent_set is the superset of val/test_ent_set
     pub fn split_dataset(&self) -> Result<()> {
         log::info!("split_dataset...");
         let nodes_num = self.inner.node_count();
@@ -320,6 +333,7 @@ impl Kg {
         Ok([hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all])
     }
 
+    /// iterate all nodes, for each node, get all it's out_neighbors => (h,r)->(ts:t1,t2,..,tn)
     fn get_hr_ts_map(file: &str) -> Result<HRTsM> {
         let graph = Self::load_from_file(file)?;
 
@@ -356,11 +370,8 @@ impl Kg {
         Ok(hr_ts_map)
     }
 
-    ///  train: all edges -> hr_ts_map -> input: (h,r) label: ts
-    ///  val: all edges -> hr_ts_map -> input: (h,r); label: ts; aux: (ts_trn) <- hr_ts_map_trn
-    ///  test: all edges -> hr_ts_map -> input: (h,r); label: ts; aux: (ts_trn) <- hr_ts_map_trn
-    // or
-    ///  val: all edges -> hr_ts_map -> input: (h,r); label: ts; aux: (ts_all)
+    /// HRTsM -> tfrecord
+    /// This function check the no.2(trn_ent_set is all ent_set) constraint again
     pub fn gen_tfrecord() -> Result<()> {
         log::info!("gen_tfrecord...");
         let [hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all] = Self::get_hr_ts_maps()?;
@@ -402,6 +413,10 @@ impl Kg {
         Ok(())
     }
 
+    /// trn/(val, test) HRTsM((h,r)->(ts: t1, t2,..,tn) -> tfrecord
+    /// Record feature field:
+    ///   trn: input; label; num_ent
+    ///   dev: input; label; num_ent; aux_label
     fn map_to_tfrecord(
         map: HRTsM,
         map_all: Option<&HRTsM>,
@@ -659,6 +674,7 @@ impl Default for RelationShip {
     }
 }
 
+/// implement `ParseValue` for load graph form graph.txt
 impl ParseValue for RelationShip {
     fn parse(bytes: &[u8]) -> (Self, usize) {
         use std::str::FromStr;
@@ -681,6 +697,7 @@ mod graph_text {
     use std::fs::{File, OpenOptions};
     use std::io::{BufRead, BufReader, BufWriter, Write};
 
+    /// dump triple set to file
     pub(crate) fn write_set_to_file(set: HashSet<Triple>, outfile: &str) -> Result<()> {
         let outfile = OpenOptions::new()
             .create(true)
@@ -696,6 +713,7 @@ mod graph_text {
         Ok(())
     }
 
+    /// graph_trn(val, test).txt -> grah_trn(val, test)_with_rev.txt
     pub(crate) fn add_rev(infile: &str) -> Result<()> {
         let outfile = format!("{}_with_rev.txt", infile);
         let infile = format!("{}.txt", infile);

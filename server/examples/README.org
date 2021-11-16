@@ -1,3 +1,84 @@
+* Contents :toc:
+- [[#readme][Readme]]
+  - [[#parse][parse]]
+  - [[#split_cat][split_cat]]
+    - [[#split_triple][split_triple]]
+  - [[#stat_triple][stat_triple]]
+  - [[#prepare_data][prepare_data]]
+  - [[#inject_data][inject_data]]
+  - [[#serverbindata][server/bin/data]]
+  - [[#graph][graph]]
+- [[#type][Type]]
+  - [[#rdf-schemasubclassof]["rdf-schema#subClassOf",]]
+  - [[#owlsameas]["owl#sameAs",]]
+  - [[#22-rdf-syntax-nstype][*"22-rdf-syntax-ns#type"*,]]
+  - [[#x-rdf-schemalabel]["X rdf-schema#label",]]
+  - [[#x-rdf-schemadomain]["X rdf-schema#domain",]]
+  - [[#x-rdf-schemarange]["X rdf-schema#range",]]
+  - [[#x-症状相关药品-just-a-little-not-include-in-triples-due-to--in-there]["X 症状相关药品", just a little, not include in triples due to # in there]]
+  - [[#x-疾病相关药品--just-a-little-not-include-in-triples-due-to--in-there]["X 疾病相关药品",  just a little, not include in triples due to # in there]]
+- [[#triples][Triples]]
+- [[#rel][Rel]]
+- [[#todo][Todo]]
+- [[#split-to-cats][split to cats]]
+  - [[#症状][症状]]
+  - [[#疾病][疾病]]
+  - [[#检查][检查]]
+  - [[#部位][部位]]
+  - [[#药品][药品]]
+  - [[#科室][科室]]
+- [[#nebula][Nebula]]
+  - [[#space][SPACE]]
+  - [[#create-tag-and-edge][Create TAG and EDGE]]
+  - [[#insert-vertices-and-edges][Insert vertices and edges]]
+  - [[#go][GO]]
+  - [[#fetch][FETCH]]
+  - [[#lookup][LOOKUP]]
+  - [[#match][MATCH]]
+- [[#neo4j][Neo4j]]
+  - [[#create-relation][create relation]]
+  - [[#constraint][constraint]]
+- [[#todolist][TodoList]]
+
+* Readme
+the processing is:
+** parse
+~data/chinese_symptom/dsc.nlp-bigdatalab.org.ttl~
+ -> ~data/chinese_symptom/triples.json(not_triple.txt, err_line.txt)~
+ ~data/chinese_symptom/triples.json~ - copy into > ~data/chinese_symptom/all_result/triples.json~
+
+** split_cat
+~data/chinese_symptom/all_result/triples.json~ -> ~all_results/cats/症状.txt ...~
+*** split_triple
+~data/chinese_symptom/all_result/triples.json~ -> ~all_results/*split*/症状相关疾病.txt ...~
+** stat_triple
+get the triple contains ',' -> ~all_results/togs_head(tail).txt~
+
+** prepare_data
+~data/chinese_symptom/all_result/split/症状相关疾病.txt ...~
+->
+  ~all_results/triples_id.txt~
+  ~all_results/ent_map.json~
+  ~all_results/rel_map.json~
+
+** inject_data
+text data into neo4j database with constraint
+~data/chinese_symptom/all_result/split/症状相关疾病.txt ...~ -> *neo4j*
+
+** server/bin/data
+export neo4j data
+-> ~name_id_map.json~  ~id_name_map.json~  *this is 2th, not the original neo4j id, just re-generate id*
+-> ~graph.txt~ 22028 5198 SYMPTOM_RELATE_DISEASE (for ~graph~ crate graph format)
+
+** graph
+graph.rs is cli that transform neo4j raw triple txt to tfrecord dataset
+the processing is:
+1. (neo4j) graph.txt: 22028 5198 SYMPTOM_RELATE_DISEASE
+2. graph.txt - load_graph -> split_dataset -> graph_trn/val/test.txt
+3. graph_trn/val/test.txt - add_rev -> graph_trn/val/test_with_rev.txt
+4. gen_tfrecord: symptom_trn/val/test.tfrecord <- map_to_tfrecord  <- get_hr_ts_maps - graph_trn/val/test_with_rev.txt
+
+
 * Type
 ** "rdf-schema#subClassOf",
    #+begin_src text
@@ -249,8 +330,7 @@
      CREATE CONSTRAINT ON (n:Person) ASSERT n.name IS UNIQUE;
    #+end_src
 
-
 * TodoList
-  - [X] display single main node one hop neighbors
-  - [ ] select data and train
-    - [ ] get stats
+  - [x] display single main node one hop neighbors
+  - [x] select data and train
+    - [x] get stats
