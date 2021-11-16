@@ -490,13 +490,18 @@ fn run(train_config: TrainConfig) -> Result<()> {
 
         let eval = |dev: Dev, writer: &mut SummaryWriter, global_step: i64| -> Result<EvalValue> {
             log::info!("eval....");
+
+            let mut eval_init_step = SessionRunArgs::new();
+            eval_init_step.add_feed(&op_ph_batch_size_dev, 0, &batch_size_dev_tensor);
+
             let mut eval_step = SessionRunArgs::new();
             eval_step.add_feed(&op_ph_batch_size_dev, 0, &batch_size_dev_tensor);
 
             let (steps, rank_token, hit1_token, hit3_token, hit10_token) = match dev {
                 Dev::Val => {
                     eval_step.add_feed(&op_val_record_path, 0, &val_record_path);
-                    eval_step.add_target(&op_batch_data_val_init);
+                    // bug
+                    eval_init_step.add_target(&op_batch_data_val_init);
                     eval_step.add_target(&op_eval_val);
                     (
                         (VAL_SIZE / batch_size_dev) as usize,
@@ -508,7 +513,7 @@ fn run(train_config: TrainConfig) -> Result<()> {
                 }
                 Dev::Test => {
                     eval_step.add_feed(&op_test_record_path, 0, &test_record_path);
-                    eval_step.add_target(&op_batch_data_test_init);
+                    eval_init_step.add_target(&op_batch_data_test_init);
                     eval_step.add_target(&op_eval_test);
                     (
                         (TEST_SIZE / batch_size_dev) as usize,
@@ -523,6 +528,8 @@ fn run(train_config: TrainConfig) -> Result<()> {
             let mut hit1s = Vec::with_capacity(steps);
             let mut hit3s = Vec::with_capacity(steps);
             let mut hit10s = Vec::with_capacity(steps);
+
+            session.run(&mut eval_init_step)?;
             for i in 0..steps {
                 log::info!("eval [{}]", i);
                 session.run(&mut eval_step)?;
