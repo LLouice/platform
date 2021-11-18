@@ -1,10 +1,22 @@
 extend = "../Makefile.toml"
 
+[tasks.rev]
+command = "cargo"
+args = ["run", "--example", "graph", "--", "--add_rev", "--suffix", "_dis"]
 
+
+[tasks.split]
+command = "cargo"
+args = ["run", "--example", "graph", "--", "-f", "graph_dis.txt", "--suffix", "_dis", "--split", "--cat", "SYMPTOM_RELATE_DISEASE"]
+
+
+[tasks.size]
+command = "cargo"
+args = ["run", "--example", "graph", "--", "--size", "--suffix", "_dis", "--cat", "SYMPTOM_RELATE_DISEASE"]
 
 [tasks.record]
-comand = "cargo"
-args = ["run", "--example", "graph", "-f" "graph.txt]
+command = "cargo"
+args = ["run", "--example", "graph", "--", "--record", "--cat", "SYMPTOM_RELATE_DISEASE", "--suffix", "_dis"]
 
 
 [tasks."e.g."]

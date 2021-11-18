@@ -4,28 +4,28 @@
 ///! graph.txt - load_graph -> split_dataset -> graph_trn/val/test.txt
 ///! graph_trn/val/test.txt - add_rev -> graph_trn/val/test_with_rev.txt
 ///! gen_tfrecord:  symptom_trn/val/test.tfrecord <- map_to_tfrecord  <- get_hr_ts_maps - graph_trn/val/test_with_rev.txt
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::{App, Arg};
 use graph::prelude::*;
 use num_enum::FromPrimitive;
 use platform::init_env_logger;
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::ops::Deref;
-use std::path::Path;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString};
 // use delegate::delegate;
 use rand::distributions::Distribution;
-use rand::Rng;
 use statrs::distribution::Multinomial;
 use tfrecord::{Example, ExampleWriter, Feature, RecordWriterInit};
 
 fn main() -> Result<()> {
     init_env_logger!();
 
+    let default_cat = RelationShip::SymptomRelateDisease.to_string();
     let mut app = App::new("kg")
         .version("1.0")
         .author("LLouice")
@@ -49,18 +49,28 @@ fn main() -> Result<()> {
                 .short('s')
                 .long("split")
                 .requires("file")
+                .requires("cat")
                 .about("split dataset"),
+        )
+        .arg(
+            Arg::new("suffix")
+                .long("suffix")
+                .takes_value(true)
+                .default_value("")
+                .about("suffix, play with cat"),
         )
         .arg(
             Arg::new("add_rev")
                 .short('r')
                 .long("add_rev")
+                .requires("suffix")
                 .about("add rev to graph text file"),
         )
         .arg(
             Arg::new("record")
                 .short('R')
                 .long("record")
+                .requires("cat")
                 .about("generate tfrecord"),
         )
         .arg(Arg::new("record_outfile").long("RO").about("tfrecord name"))
@@ -76,8 +86,27 @@ fn main() -> Result<()> {
                 .long("debug")
                 .about("debug / inspect the graph"),
         )
+        .arg(
+            Arg::new("cat")
+                .short('c')
+                .long("cat")
+                .requires("suffix")
+                .takes_value(true)
+                .about("select category"),
+        )
         .arg(Arg::new("size").long("size").about("dataset size"))
-        .arg(Arg::new("ex").short('e').long("ex").about("do experiment"));
+        .arg(Arg::new("ex").short('e').long("ex").about("do experiment"))
+        .subcommand(
+            App::new("filter").about("filter graph").arg(
+                Arg::new("cat")
+                    .short('c')
+                    .long("cat")
+                    .takes_value(true)
+                    .default_value(default_cat.as_str())
+                    .about("select category"),
+            ),
+        );
+
     let mut help = Vec::new();
     app.write_help(&mut help).expect("error on write app help");
     let help = String::from_utf8(help).expect("failed to convert help Vec<u8> to String");
@@ -85,21 +114,33 @@ fn main() -> Result<()> {
 
     let mut res = None;
 
+    let cats = matches.values_of("cat");
+    let suffix = matches.value_of("suffix").unwrap();
+
+    let subset_relationship = match cats {
+        Some(cats) => cats
+            .map(|x| RelationShip::from_str(x))
+            .collect::<Result<Vec<_>, _>>()
+            .ok(),
+        None => None,
+    };
+
     if matches.is_present("load") {
         res = Some(Kg::load_from_file("graph_with_rev.txt"));
     } else if let Some(file) = matches.value_of("file") {
         res = Some(Kg::load_from_file(file));
     } else if matches.is_present("record") {
-        Kg::gen_tfrecord()?;
+        Kg::gen_tfrecord(subset_relationship.clone(), suffix)?;
     } else if matches.is_present("add_rev") {
         log::info!("add_rev");
-        graph_text::add_rev("graph_trn")?;
-        graph_text::add_rev("graph_val")?;
-        graph_text::add_rev("graph_test")?;
+        graph_text::add_rev(&format!("graph{}_trn", suffix))?;
+        graph_text::add_rev(&format!("graph{}_val", suffix))?;
+        graph_text::add_rev(&format!("graph{}_test", suffix))?;
     } else if matches.is_present("size") {
-        Kg::dataset_size()?;
+        Kg::dataset_size(subset_relationship.clone(), suffix)?;
     } else if matches.is_present("ex") {
         lab::ex();
+    } else if matches.subcommand_name().is_some() {
     } else {
         println!("{}", help);
     }
@@ -109,7 +150,8 @@ fn main() -> Result<()> {
             Err(e) => {
                 log::error!("{:?}", e);
             }
-            Ok(graph) => {
+            Ok(mut graph) => {
+                graph.set_subset_relationship(subset_relationship);
                 log::info!(
                     "graph:: nodes: {}, edges: {}",
                     graph.node_count(),
@@ -118,7 +160,7 @@ fn main() -> Result<()> {
                 log::info!("get graph successfully!");
 
                 if matches.is_present("split") {
-                    graph.split_dataset()?;
+                    graph.split_dataset(suffix)?;
                 }
 
                 // if matches.is_present("record") {
@@ -133,6 +175,14 @@ fn main() -> Result<()> {
             }
         }
     }
+    if let Some(matches) = matches.subcommand_matches("filter") {
+        let cats: Result<Vec<_>, _> = matches
+            .values_of("cat")
+            .unwrap()
+            .map(|x| RelationShip::from_str(x))
+            .collect();
+        filter::filter_graph(cats?.as_slice(), "dis")?;
+    }
     eprintln!("main end");
     Ok(())
 }
@@ -143,6 +193,7 @@ type HRTsM = HashMap<(i64, u8), Vec<i64>>;
 
 struct Kg {
     inner: KgDGraph,
+    subset_relationship: Option<Vec<RelationShip>>,
 }
 
 // TODO: make this generic
@@ -150,17 +201,46 @@ impl Kg {
     pub fn load_from_file(file: &str) -> Result<Self> {
         Ok(Self {
             inner: load_graph(file)?,
+            subset_relationship: None,
         })
     }
 
+    pub fn set_subset_relationship(&mut self, subset_relationship: Option<Vec<RelationShip>>) {
+        self.subset_relationship = subset_relationship;
+    }
+
     /// print hr_ts_map_trn(val, test) size
-    fn dataset_size() -> Result<()> {
-        let [hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all] = Self::get_hr_ts_maps()?;
+    fn dataset_size(subset_relationship: Option<Vec<RelationShip>>, suffix: &str) -> Result<()> {
+        let [hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all] =
+            Self::get_hr_ts_maps(subset_relationship, suffix)?;
 
         println!("train_size: {}", hr_ts_map_trn.len());
         println!("val_size: {}", hr_ts_map_val.len());
         println!("test_size: {}", hr_ts_map_test.len());
         println!("all_size: {}", hr_ts_map_all.len());
+
+        // num_ent
+        let get_ent_set = |map: &HRTsM, name: &str| {
+            let mut ent_set: HashSet<i64> = HashSet::new();
+            for (&(h, r), ts) in map {
+                ent_set.insert(h);
+                println!("[{}], h: {}, r: {}, ts: {:?}", name, h, r, ts);
+                for t in ts.clone() {
+                    ent_set.insert(t);
+                }
+            }
+            ent_set
+        };
+        let ent_set_trn = get_ent_set(&hr_ts_map_trn, "trn");
+        let ent_set_val = get_ent_set(&hr_ts_map_val, "val");
+        let ent_set_test = get_ent_set(&hr_ts_map_test, "test");
+        let ent_set_all = get_ent_set(&hr_ts_map_all, "all");
+        assert!(ent_set_trn.is_superset(&ent_set_val));
+        assert!(ent_set_trn.is_superset(&ent_set_test));
+        assert!(ent_set_trn.is_superset(&ent_set_all));
+        assert!(ent_set_trn.is_subset(&ent_set_all));
+        let num_ent = ent_set_trn.len();
+        println!("num_ent: {}", num_ent);
         Ok(())
     }
 
@@ -170,7 +250,7 @@ impl Kg {
     /// This function also check the constraint:
     ///          1. trn/val/test_set not all disjoint
     ///          2. trn_ent_set is the superset of val/test_ent_set
-    pub fn split_dataset(&self) -> Result<()> {
+    pub fn split_dataset(&self, suffix: &str) -> Result<()> {
         log::info!("split_dataset...");
         let nodes_num = self.inner.node_count();
         // node degree map
@@ -206,7 +286,9 @@ impl Kg {
                 let tx = tx.take().unwrap();
                 let targets = g.out_neighbors_with_values(node);
                 for x in targets {
-                    let rel = x.value as u8;
+                    let rel = x
+                        .value
+                        .to_u8(self.subset_relationship.as_ref().map(|x| x.as_slice()));
                     let tail = x.target;
                     tx.send((node, tail, rel)).expect("send fail!");
                 }
@@ -286,7 +368,6 @@ impl Kg {
         assert!(val_set.is_disjoint(&test_set));
 
         // check all val / test entity in trn_set
-
         let get_ent_set = |set| {
             let mut ent_set = HashSet::new();
             for &(h, t, _) in set {
@@ -302,19 +383,31 @@ impl Kg {
         assert!(trn_ent_set.is_superset(&test_ent_set));
 
         // write to file
-        graph_text::write_set_to_file(trn_set, "graph_trn.txt")?;
-        graph_text::write_set_to_file(test_set, "graph_test.txt")?;
-        graph_text::write_set_to_file(val_set, "graph_val.txt")?;
+        graph_text::write_set_to_file(trn_set, &format!("graph{}_trn.txt", suffix))?;
+        graph_text::write_set_to_file(test_set, &format!("graph{}_test.txt", suffix))?;
+        graph_text::write_set_to_file(val_set, &format!("graph{}_val.txt", suffix))?;
 
         Ok(())
     }
 
     ///  get hr_ts_trn/val/test (<-graph_trn/val/test_with_rev.txt);
     ///  and hr_ts_all (combine three);
-    pub fn get_hr_ts_maps() -> Result<[HRTsM; 4]> {
-        let hr_ts_map_trn = Self::get_hr_ts_map("graph_trn_with_rev.txt")?;
-        let hr_ts_map_val = Self::get_hr_ts_map("graph_val_with_rev.txt")?;
-        let hr_ts_map_test = Self::get_hr_ts_map("graph_test_with_rev.txt")?;
+    pub fn get_hr_ts_maps(
+        subset_relationship: Option<Vec<RelationShip>>,
+        suffix: &str,
+    ) -> Result<[HRTsM; 4]> {
+        let hr_ts_map_trn = Self::get_hr_ts_map(
+            &format!("graph{}_trn_with_rev.txt", suffix),
+            subset_relationship.clone(),
+        )?;
+        let hr_ts_map_val = Self::get_hr_ts_map(
+            &format!("graph{}_val_with_rev.txt", suffix),
+            subset_relationship.clone(),
+        )?;
+        let hr_ts_map_test = Self::get_hr_ts_map(
+            &format!("graph{}_test_with_rev.txt", suffix),
+            subset_relationship,
+        )?;
 
         let mut hr_ts_map_all = HashMap::with_capacity(
             hr_ts_map_trn.len() + hr_ts_map_val.len() + hr_ts_map_test.len(),
@@ -334,7 +427,7 @@ impl Kg {
     }
 
     /// iterate all nodes, for each node, get all it's out_neighbors => (h,r)->(ts:t1,t2,..,tn)
-    fn get_hr_ts_map(file: &str) -> Result<HRTsM> {
+    fn get_hr_ts_map(file: &str, subset_relationship: Option<Vec<RelationShip>>) -> Result<HRTsM> {
         let graph = Self::load_from_file(file)?;
 
         let nodes_num = graph.inner.node_count();
@@ -346,7 +439,9 @@ impl Kg {
                 let mut hr_ts_map = HashMap::new();
                 let targets = g.out_neighbors_with_values(node);
                 targets.iter().for_each(|x| {
-                    let rel = x.value as u8;
+                    let rel = x
+                        .value
+                        .to_u8(subset_relationship.as_ref().map(|x| x.as_slice()));
                     let tail = x.target;
                     hr_ts_map
                         .entry((node as i64, rel))
@@ -372,9 +467,13 @@ impl Kg {
 
     /// HRTsM -> tfrecord
     /// This function check the no.2(trn_ent_set is all ent_set) constraint again
-    pub fn gen_tfrecord() -> Result<()> {
+    pub fn gen_tfrecord(
+        subset_relationship: Option<Vec<RelationShip>>,
+        suffix: &str,
+    ) -> Result<()> {
         log::info!("gen_tfrecord...");
-        let [hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all] = Self::get_hr_ts_maps()?;
+        let [hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all] =
+            Self::get_hr_ts_maps(subset_relationship, suffix)?;
 
         // num_ent
         let get_ent_set = |map: &HRTsM| {
@@ -397,17 +496,22 @@ impl Kg {
         assert!(ent_set_trn.is_subset(&ent_set_all));
         let num_ent = ent_set_trn.len();
 
-        Self::map_to_tfrecord(hr_ts_map_trn, None, "symptom_trn.tfrecord", num_ent)?;
+        Self::map_to_tfrecord(
+            hr_ts_map_trn,
+            None,
+            &format!("symptom{}_trn.tfrecord", suffix),
+            num_ent,
+        )?;
         Self::map_to_tfrecord(
             hr_ts_map_val,
             Some(&hr_ts_map_all),
-            "symptom_val.tfrecord",
+            &format!("symptom{}_val.tfrecord", suffix),
             num_ent,
         )?;
         Self::map_to_tfrecord(
             hr_ts_map_test,
             Some(&hr_ts_map_all),
-            "symptom_test.tfrecord",
+            &format!("symptom{}_test.tfrecord", suffix),
             num_ent,
         )?;
         Ok(())
@@ -490,7 +594,9 @@ impl Kg {
             let mut hr_ts_map = HashMap::new();
             let targets = g.out_neighbors_with_values(node);
             targets.iter().for_each(|x| {
-                let rel = x.value as u8;
+                let rel = x
+                    .value
+                    .to_u8(self.subset_relationship.as_ref().map(|x| x.as_slice()));
                 let tail = x.target;
                 hr_ts_map
                     .entry((node, rel))
@@ -663,8 +769,32 @@ enum RelationShip {
 }
 
 impl RelationShip {
-    pub fn len() -> u8 {
-        10
+    /// convert RelationShip variant to u8, the set can be subset of the whole RelationShip
+    pub fn to_u8(self, subset: Option<&[RelationShip]>) -> u8 {
+        let rel_idx = self as u8;
+        if let Some(subset) = subset {
+            let sz = subset.len();
+            let rel_idx_not_rev = if rel_idx < 5 { rel_idx } else { rel_idx - 5 };
+
+            let idx = subset
+                .iter()
+                .position(|x| *x as u8 == rel_idx_not_rev)
+                .expect(&format!(
+                    "the rel: {:?} not in subset: {:?}",
+                    RelationShip::from(rel_idx_not_rev),
+                    subset
+                ));
+            if sz == 1 {
+                assert_eq!(idx, 0);
+            }
+            if rel_idx < 5 {
+                idx as u8
+            } else {
+                (idx + sz) as u8
+            }
+        } else {
+            rel_idx
+        }
     }
 }
 
@@ -677,7 +807,6 @@ impl Default for RelationShip {
 /// implement `ParseValue` for load graph form graph.txt
 impl ParseValue for RelationShip {
     fn parse(bytes: &[u8]) -> (Self, usize) {
-        use std::str::FromStr;
         // find '\n'
         let len = bytes.iter().take_while(|&&b| b != b'\n').count();
 
@@ -737,6 +866,103 @@ mod graph_text {
                 writeln!(stream, "{} {} {}_REV", splits[1], splits[0], splits[2])?;
             }
         }
+        Ok(())
+    }
+}
+
+/// graph.txt id_name_map.json -> graph_dis.txt id_name_dis_map.json name_id_dis_map.json
+mod filter {
+    use std::fs::OpenOptions;
+
+    use super::*;
+    pub(super) fn filter_graph(cats: &[RelationShip], suffix: &str) -> Result<()> {
+        let id_name_map: HashMap<usize, String> = {
+            let reader = BufReader::new(File::open("id_name_map.json")?);
+            serde_json::from_reader(reader)?
+        };
+
+        let mut filtered_triples: HashSet<(String, String, u8)> = HashSet::new();
+        let mut filtered_name_id_map: HashMap<String, usize> = HashMap::new();
+
+        let filename = "graph.txt";
+        for (idx, line) in BufReader::new(File::open(filename)?).lines().enumerate() {
+            if let Ok(line) = line {
+                let triple = line.trim().split_whitespace().collect::<Vec<_>>();
+                let h = id_name_map
+                    .get(
+                        &triple
+                            .get(0)
+                            .ok_or_else(|| anyhow!("no head in triple: {:?}", triple))?
+                            .parse::<usize>()?,
+                    )
+                    .ok_or_else(|| anyhow!("triple: {:?} head not in id_name_map"))?;
+                let t = id_name_map
+                    .get(
+                        &triple
+                            .get(1)
+                            .ok_or_else(|| anyhow!("no tail in triple: {:?}", triple))?
+                            .parse::<usize>()?,
+                    )
+                    .ok_or_else(|| anyhow!("triple: {:?} tail not in id_name_map"))?;
+
+                let rel = triple
+                    .get(2)
+                    .ok_or_else(|| anyhow!("no rel in triple: {:?}", triple))?;
+                let rel = RelationShip::from_str(rel)?;
+                let mut is_selected = false;
+                // let mut rel_idx = 0;
+                let rel_idx = rel as u8;
+                for (idx, cat) in cats.into_iter().enumerate() {
+                    if rel == *cat {
+                        is_selected = true;
+                        // rel_idx = idx;
+                        break;
+                    }
+                    is_selected = false;
+                }
+                if is_selected {
+                    // println!("{} {} {}", h, t, rel);
+                    filtered_triples.insert((h.clone(), t.clone(), rel_idx as u8));
+                    let sz = filtered_name_id_map.len();
+                    filtered_name_id_map.entry(h.clone()).or_insert(sz);
+                    let sz = filtered_name_id_map.len();
+                    filtered_name_id_map.entry(t.clone()).or_insert(sz);
+                }
+                // break;
+            } else {
+                eprintln!("error in line {}: {:?}", idx, line);
+            }
+        }
+
+        let outfile = format!("graph_{}.txt", suffix); // e.g. graph_dis.txt
+        let outfile = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(outfile)?;
+        let mut stream = BufWriter::new(outfile);
+        for (h, t, rel) in filtered_triples {
+            let h = *filtered_name_id_map
+                .get(&h)
+                .ok_or_else(|| anyhow!("head {} not in filtered_name_id_map", h))?;
+            let t = *filtered_name_id_map
+                .get(&t)
+                .ok_or_else(|| anyhow!("tail {} not in filtered_name_id_map", h))?;
+            writeln!(stream, "{} {} {}", h, t, RelationShip::from(rel))?;
+        }
+
+        println!("num_ent: {:?}", filtered_name_id_map.len());
+
+        let filtered_id_name_map: HashMap<usize, String> = filtered_name_id_map
+            .iter()
+            .map(|(k, v)| (v.clone(), k.clone()))
+            .collect();
+        // dump the map
+        let map_string = serde_json::to_string(&filtered_name_id_map)?;
+        std::fs::write(format!("filtered_{}_name_id_map.json", suffix), map_string)?;
+
+        let map_string = serde_json::to_string(&filtered_id_name_map)?;
+        std::fs::write(format!("filtered_{}_id_name_map.json", suffix), map_string)?;
         Ok(())
     }
 }

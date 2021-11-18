@@ -1,0 +1,6 @@
+default:
+    @just --list
+
+
+size:
+    cargo run --example graph -- --size --suffix _dis --cat SYMPTOM_RELATE_DISEASE
