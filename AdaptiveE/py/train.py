@@ -55,6 +55,7 @@ class TrainConfig:
     ckpt: Optional[str] = None
     ex: str = "default"
     model_name: str = "AdaE"
+    suffix: str = ""
     use_pretrained: bool = False
     use_transe: bool = False
     debug: bool = False
@@ -79,6 +80,7 @@ class TrainConfig:
                self.ckpt, \
                self.ex, \
                self.model_name, \
+               self.suffix, \
                self.use_pretrained, \
                self.use_transe, \
                self.debug,
@@ -118,6 +120,7 @@ class TrainConfig:
                 args.ckpt, \
                 args.ex, \
                 args.model_name, \
+                args.suffix, \
                 args.use_pretrained, \
                 args.use_transe, \
                 args.debug,
@@ -233,6 +236,11 @@ def parse_cli():
         choices=["AdaE", "ConvE"],
         default="AdaE",
     )
+    parser.add_argument(
+        "--suffix",
+        choices=("", "_dis"),
+        default="",
+    )
     parser.add_argument('--use_pretrained',
                         help="use pretrained w2v embeddings",
                         action="store_true")
@@ -243,13 +251,13 @@ def parse_cli():
     return args
 
 
-def load_pretrained_embeddings():
-    pretrained_embeddings = np.load("assets/embeddings.npy")
+def load_pretrained_embeddings(suffix):
+    pretrained_embeddings = np.load(f"assets/embeddings{suffix}.npy")
     return pretrained_embeddings
 
 
 def run(train_config: TrainConfig) -> Result[None, str]:
-    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, ex, model_name, use_pretrained, use_transe, debug_mode = train_config.destruct(
+    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, ex, model_name, suffix, use_pretrained, use_transe, debug_mode = train_config.destruct(
     )
 
     config_proto = build_config_proto(visible_device_list,
@@ -296,7 +304,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     ph_trn_record_path = graph.get_tensor_by_name(
         "data_trn/dataset_trn/Const:0")
     # based on current dir
-    trn_record_path = "assets/symptom_trn.tfrecord"
+    trn_record_path = f"assets/symptom{suffix}_trn.tfrecord"
 
     op_batch_data_val_init = graph.get_operation_by_name(
         "data_val/dataset_val/MakeIterator")
@@ -305,7 +313,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     ph_val_record_path = graph.get_tensor_by_name(
         "data_val/dataset_val/Const:0")
     # based on current dir
-    val_record_path = "assets/symptom_val.tfrecord"
+    val_record_path = f"assets/symptom{suffix}_val.tfrecord"
 
     op_batch_data_test_init = graph.get_operation_by_name(
         "data_test/dataset_test/MakeIterator")
@@ -314,7 +322,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     ph_test_record_path = graph.get_tensor_by_name(
         "data_test/dataset_test/Const:0")
     # based on current dir
-    test_record_path = "assets/symptom_test.tfrecord"
+    test_record_path = f"assets/symptom{suffix}_test.tfrecord"
 
     # train op
     op_optimize = graph.get_operation_by_name("optimizer/optimize")
@@ -379,7 +387,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     if use_transe:
         feed_dict[ph_use_transe] = True
     if use_pretrained:
-        feed_dict[ph_pretrained_embeddings] = load_pretrained_embeddings()
+        feed_dict[ph_pretrained_embeddings] = load_pretrained_embeddings(suffix)
 
     # init step
     def init():

@@ -959,10 +959,10 @@ mod filter {
             .collect();
         // dump the map
         let map_string = serde_json::to_string(&filtered_name_id_map)?;
-        std::fs::write(format!("filtered_{}_name_id_map.json", suffix), map_string)?;
+        std::fs::write(format!("name_id{}_map.json", suffix), map_string)?;
 
         let map_string = serde_json::to_string(&filtered_id_name_map)?;
-        std::fs::write(format!("filtered_{}_id_name_map.json", suffix), map_string)?;
+        std::fs::write(format!("id_name{}_map.json", suffix), map_string)?;
         Ok(())
     }
 }
