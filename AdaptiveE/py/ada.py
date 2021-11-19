@@ -394,16 +394,21 @@ class ConvE(object):
                             training=training)
         return x
 
-    def fc(self, x):
-        # 2*E*C -> E
-        return tf.layers.dense(
-            x,
-            self.E,
-            activation=tf.nn.relu,
-            use_bias=True,
-            kernel_initializer=tf.glorot_normal_initializer(),
-            bias_initializer=tf.zeros_initializer(),
-            name="fc")
+    def fc(self, x, training, name="fc"):
+        with Scope(name, prefix=self.path, reuse=self.reuse):
+            # 2*E*C -> E
+            x = tf.layers.dense(
+                x,
+                self.E,
+                activation=None,
+                use_bias=None,
+                kernel_initializer=tf.glorot_normal_initializer(),
+                name=name)
+            x = tf.layers.Dropout(rate=self.last_dp)(x, training=training)
+            x = tf.layers.BatchNormalization(axis=-1,
+                                             name="bn2")(x, training=training)
+            x = tf.nn.relu(x)
+        return x
 
     def ic_last(self, x, training):
         with Scope("ic_last", prefix=self.path, reuse=self.reuse):
@@ -411,6 +416,15 @@ class ConvE(object):
             self.dp_last = tf.layers.Dropout(rate=self.last_dp)
             x = self.dp_last(self.bn_last(x, training=training),
                              training=training)
+        return x
+
+    def pred(self, x, name="pred"):
+        with Scope(name, prefix=self.prefix, reuse=self.reuse) as scope_pred:
+            x = tf.matmul(x, self.emb_e, transpose_b=True, name="mul_E")
+            b = tf.get_variable('bias',
+                                shape=[self.NE],
+                                initializer=tf.zeros_initializer())
+            x = tf.add(x, b, name="logits")
         return x
 
     def __call__(self,
@@ -439,21 +453,13 @@ class ConvE(object):
                                              name="bn1")(x, training=training)
             x = tf.nn.relu(x)
             x = tf.layers.Dropout(rate=self.hid_dp)(x, training=training)
-            x = tf.layers.flatten(x, name="flatten")
+            x_hid = tf.layers.flatten(x, name="flatten")
             # [B, E'] -> [B, E]
-            x = self.fc(x)
-            x = tf.layers.Dropout(rate=self.last_dp)(x, training=training)
-            x = tf.layers.BatchNormalization(axis=-1,
-                                             name="bn2")(x, training=training)
-            x = tf.nn.relu(x)
-            with Scope("pred", prefix=scope.prefix,
-                       reuse=self.reuse) as scope_pred:
-                x = tf.matmul(x, self.emb_e, transpose_b=True, name="mul_E")
-                self.b = tf.get_variable('bias',
-                                         shape=[self.NE],
-                                         initializer=tf.zeros_initializer())
-                x = tf.add(x, self.b, name="logits")
-        return x, dis_pos, dis_neg
+            x0 = self.fc(x_hid, training=training, name="fc_label")
+            x1 = self.fc(x_hid, training=training)
+            logit_label = self.pred(x0, name="pred_label")
+            logit = self.pred(x1)
+        return (logit_label, logit), dis_pos, dis_neg
 
 
 def test():
@@ -695,6 +701,8 @@ class Export(object):
 
         logits_val, _, _ = self._build_forward(e1_val, rel_val, False, True,
                                                triple_val, neg_triple_val)
+        if len(logits_val) > 1:
+            logits_val = logits_val[1]
 
         _, _, _, self.rank_val, self.hits1_val, self.hits3_val, self.hits10_val, _ = self._build_eval(
             logits_val,
@@ -722,6 +730,9 @@ class Export(object):
 
         logits_test, _, _ = self._build_forward(e1_test, rel_test, False, True,
                                                 triple_test, neg_triple_test)
+
+        if len(logits_test) > 1:
+            logits_test = logits_test[1]
 
         _, _, _, self.rank_test, self.hits1_test, self.hits3_test, self.hits10_test, _ = self._build_eval(
             logits_test,
@@ -1021,13 +1032,35 @@ class Export(object):
 
     def _build_loss(self, labels, logits, dis_pos, dis_neg, margin=1.0):
         with tf.name_scope('loss'):
-            self.loss_model = tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
-                multi_class_labels=labels, logits=logits, label_smoothing=0.1),
-                                            name="loss_model")
-            self.loss_margin = tf.reduce_mean(tf.maximum(
-                dis_pos - dis_neg + margin, 0),
-                                              name="loss_margin")
-            self.loss = tf.add(self.loss_model, self.loss_margin, name="loss")
+            if self.model_name == "AdaE":
+                self.loss_model = tf.reduce_sum(
+                    tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
+                                                    logits=logits,
+                                                    label_smoothing=0.1),
+                    name="loss_model")
+                self.loss_margin = tf.reduce_mean(tf.maximum(
+                    dis_pos - dis_neg + margin, 0),
+                                                  name="loss_margin")
+                self.loss = tf.add(self.loss_model,
+                                   self.loss_margin,
+                                   name="loss")
+            else:
+                logits_label, logits = logits
+                print("using prob_loss...")
+                prob_labels = tf.sigmoid(logits_label)
+                labels = prob_labels * labels + (1 - prob_labels) * (1 -
+                                                                     labels)
+                self.loss_model = tf.reduce_mean(
+                    tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
+                                                    logits=logits),
+                    name="loss_model")
+
+                self.loss_margin = tf.reduce_mean(tf.maximum(
+                    dis_pos - dis_neg + margin, 0),
+                                                  name="loss_margin")
+                self.loss = tf.add(self.loss_model,
+                                   self.loss_margin,
+                                   name="loss")
 
     def _build_optimizer(self):
         with tf.name_scope('optimizer'):

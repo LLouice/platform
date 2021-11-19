@@ -3,6 +3,25 @@ LOCAL_DIR := "/run/media/llouice/LLouice/dev/Rust/my/doing/Do/platform/AdaptiveE
 
 
 
+alias prob := conve-dis-prob_loss
+alias iprob := conve-dis-prob_loss-dbg
+
+
+conve-dis-prob_loss: fetch_train clean-conve-dis-prob_loss
+    python train.py --ex conve-dis-prob_loss  --suffix _dis --model_name ConvE --visible_device_list 0 --batch_size_trn 400 --batch_size_dev 4000 -e 5000 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-dis-prob_loss:
+    rm -rf logs/conve-dis-prob_loss
+
+
+conve-dis-prob_loss-dbg: fetch_train clean-conve-dis-prob_loss-dbg && clean-conve-dis-prob_loss-dbg
+    python -m pdb train.py --ex conve-dis-prob_loss-dbg  --suffix _dis --model_name ConvE --visible_device_list 0 --batch_size_trn 400 --batch_size_dev 4000 -e 5000 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-dis-prob_loss-dbg:
+    rm -rf logs/conve-dis-prob_loss-dbg
+
 
 conve-dis: fetch_train clean-conve-dis
     python train.py --ex conve-dis  --suffix _dis --model_name ConvE --visible_device_list 0 --batch_size_trn 400 --batch_size_dev 4000 -e 5000 -I 50 --lr 0.001 --use_pretrained
@@ -30,6 +49,12 @@ smoke: fetch_train clean_default
 
 clean_default:
     rm -rf logs/default
+
+
+fetch:
+    scp -r llouice@{{LOCAL_IP}}:{{LOCAL_DIR}}/train.py train.py
+    scp -r llouice@{{LOCAL_IP}}:{{LOCAL_DIR}}/ada.py ada.py
+    scp -r llouice@{{LOCAL_IP}}:{{LOCAL_DIR}}/justfile justfile
 
 
 fetch_train:
