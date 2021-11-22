@@ -688,12 +688,13 @@ class Export(object):
             inp_trn = batch_data_trn["input"]
             inp_trn.set_shape((None, 2))
             label_trn = batch_data_trn["label"]
+            aux_label_trn = batch_data_trn["aux_label"]
             e1_trn, rel_trn = tf.unstack(inp_trn, axis=1)
 
         logits, dis_pos, dis_neg = self._build_forward(e1_trn, rel_trn, True,
                                                        None, triple_trn,
                                                        neg_triple_trn)
-        self._build_loss(label_trn, logits, dis_pos, dis_neg)
+        self._build_loss(label_trn, aux_label_trn, logits, dis_pos, dis_neg)
         self._build_optimizer()
 
         # eval
@@ -761,8 +762,10 @@ class Export(object):
     def _build_train_dataset(self, repeat_num, batch_size=4):
 
         with tf.name_scope('dataset_trn'):
-            dataset_trn = tf.data.TFRecordDataset("symptom_trn.tfrecord",
-                                                  num_parallel_reads=16)
+            # dataset_trn = tf.data.TFRecordDataset("symptom_trn.tfrecord",
+            #                                       num_parallel_reads=16)
+            dataset_trn = tf.data.TFRecordDataset(
+                "symptom_dis_masked_label_trn.tfrecord", num_parallel_reads=16)
 
             # Create a description of the features.
             feature_description_trn = {
@@ -777,6 +780,11 @@ class Export(object):
                                               default_value=0,
                                               allow_missing=True),
                 'num_ent':
+                tf.io.FixedLenSequenceFeature([],
+                                              tf.int64,
+                                              default_value=0,
+                                              allow_missing=True),
+                'aux_label':
                 tf.io.FixedLenSequenceFeature([],
                                               tf.int64,
                                               default_value=0,
@@ -797,6 +805,15 @@ class Export(object):
                                        tf.int32),
                         tf.ones_like(label, dtype=tf.float32))
                     d["label"] = label
+
+                    aux_label = tf.convert_to_tensor(d["aux_label"],
+                                                     dtype=tf.int64)
+                    aux_label = scatter_update_tensor(
+                        zeros,
+                        tf.cast(tf.expand_dims(aux_label, axis=1), tf.int32),
+                        tf.ones_like(aux_label, dtype=tf.float32))
+                    aux_label = 1 - (-aux_label + label)
+                    d["aux_label"] = aux_label
                     return d
 
             def _transform2(d):
@@ -1045,12 +1062,19 @@ class Export(object):
                                                  triple, neg_triple)
             return logits, dis_pos, dis_neg
 
-    def _build_loss(self, labels, logits, dis_pos, dis_neg, margin=1.0):
+    def _build_loss(self,
+                    labels,
+                    masked_labels,
+                    logits,
+                    dis_pos,
+                    dis_neg,
+                    margin=1.0):
         with tf.name_scope('loss'):
             if not self.use_other_loss:
                 self.loss_model = tf.reduce_sum(
                     tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
-                                                    logits=logits,
+                                                    logits=logits *
+                                                    masked_labels,
                                                     label_smoothing=0.1),
                     name="loss_model")
                 self.loss_margin = tf.reduce_mean(tf.maximum(

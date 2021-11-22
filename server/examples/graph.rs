@@ -71,8 +71,10 @@ fn main() -> Result<()> {
                 .short('R')
                 .long("record")
                 .requires("cat")
+                .requires("masked_label")
                 .about("generate tfrecord"),
         )
+        .arg(Arg::new("masked_label").short('M').long("masked_label"))
         .arg(Arg::new("record_outfile").long("RO").about("tfrecord name"))
         .arg(
             Arg::new("full")
@@ -130,7 +132,11 @@ fn main() -> Result<()> {
     } else if let Some(file) = matches.value_of("file") {
         res = Some(Kg::load_from_file(file));
     } else if matches.is_present("record") {
-        Kg::gen_tfrecord(subset_relationship.clone(), suffix)?;
+        Kg::gen_tfrecord(
+            subset_relationship.clone(),
+            suffix,
+            matches.is_present("masked_label"),
+        )?;
     } else if matches.is_present("add_rev") {
         log::info!("add_rev");
         graph_text::add_rev(&format!("graph{}_trn", suffix))?;
@@ -470,6 +476,7 @@ impl Kg {
     pub fn gen_tfrecord(
         subset_relationship: Option<Vec<RelationShip>>,
         suffix: &str,
+        masked_label: bool,
     ) -> Result<()> {
         log::info!("gen_tfrecord...");
         let [hr_ts_map_trn, hr_ts_map_val, hr_ts_map_test, hr_ts_map_all] =
@@ -496,12 +503,22 @@ impl Kg {
         assert!(ent_set_trn.is_subset(&ent_set_all));
         let num_ent = ent_set_trn.len();
 
-        Self::map_to_tfrecord(
-            hr_ts_map_trn,
-            None,
-            &format!("symptom{}_trn.tfrecord", suffix),
-            num_ent,
-        )?;
+        if masked_label {
+            Self::map_to_tfrecord(
+                hr_ts_map_trn,
+                Some(&hr_ts_map_all),
+                &format!("symptom{}_masked-label_trn.tfrecord", suffix),
+                num_ent,
+            )?;
+        } else {
+            Self::map_to_tfrecord(
+                hr_ts_map_trn,
+                None,
+                &format!("symptom{}_trn.tfrecord", suffix),
+                num_ent,
+            )?;
+        }
+
         Self::map_to_tfrecord(
             hr_ts_map_val,
             Some(&hr_ts_map_all),
@@ -529,6 +546,11 @@ impl Kg {
     ) -> Result<()> {
         let mut writer: ExampleWriter<_> = RecordWriterInit::create(outfile)?;
         let mut count = 0;
+        if map_all.is_some() {
+            log::info!("include aux_label");
+        } else {
+            log::info!("not include aux_label");
+        }
 
         for (key, values) in map {
             count += 1;

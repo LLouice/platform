@@ -304,7 +304,8 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     ph_trn_record_path = graph.get_tensor_by_name(
         "data_trn/dataset_trn/Const:0")
     # based on current dir
-    trn_record_path = f"assets/symptom{suffix}_trn.tfrecord"
+    # trn_record_path = f"assets/symptom{suffix}_trn.tfrecord"
+    trn_record_path = f"assets/symptom{suffix}_masked-label_trn.tfrecord"
 
     op_batch_data_val_init = graph.get_operation_by_name(
         "data_val/dataset_val/MakeIterator")

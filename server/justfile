@@ -1,6 +1,8 @@
 default:
     @just --list
 
+record:
+    cargo run --example graph -- --record --masked_label --suffix _dis --cat SYMPTOM_RELATE_DISEASE
 
 size:
     cargo run --example graph -- --size --suffix _dis --cat SYMPTOM_RELATE_DISEASE
