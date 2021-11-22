@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 from const import NE, NR, TEST_SIZE, TRAIN_SIZE, VAL_SIZE
-from losses import BootstrappedSigmoidClassificationLoss
+from losses import BootstrappedSigmoidClassificationLoss, GCELoss
 from utils import Scope, scatter_update_tensor, set_gpu, write_graph
 
 # build create static ops
@@ -1078,11 +1078,14 @@ class Export(object):
                 #                                     masked_labels,
                 #                                     label_smoothing=0.1),
                 #     name="loss_model")
-                self.loss_model = tf.reduce_mean(
-                    BootstrappedSigmoidClassificationLoss(
-                        0.95, bootstrap_type='hard')(logits * masked_labels,
-                                                     labels),
-                    name="loss_model")
+                # self.loss_model = tf.reduce_mean(
+                #     BootstrappedSigmoidClassificationLoss(
+                #         0.95, bootstrap_type='hard')(logits * masked_labels,
+                #                                      labels),
+                #     name="loss_model")
+                self.loss_model = tf.reduce_mean(GCELoss()(
+                    logits * masked_labels, labels),
+                                                 name="loss_model")
                 print(self.loss_model)
 
                 tf.reduce_sum(tf.losses.sigmoid_cross_entropy(

@@ -862,3 +862,15 @@ class L1LocalizationLoss(Loss):
             weights=weights,
             loss_collection=None,
             reduction=tf.losses.Reduction.NONE)
+
+
+class GCELoss:
+    def __init__(self, q=0.7, eps = 1e-9):
+        self.q = q
+        self.eps = eps
+
+    def __call__(self, logits, labels):
+        p = tf.sigmoid(logits)
+        p = labels * p + (1 - labels) * (1 - p) + self.eps
+        losses = (1 - (tf.pow(p, self.q))) / self.q
+        return losses

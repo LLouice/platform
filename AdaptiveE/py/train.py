@@ -490,14 +490,12 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         return value
 
     # train
-    def train(ckpt: Ckpt):
+    def train(session, ckpt: Ckpt):
         init()
         if ckpt:
             logger.info(f"restore form ckpt {ckpt}")
             restore(ckpt)
 
-        # session = tf_debug.LocalCLIDebugWrapperSession(session)
-        # session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 
         global_step = 0
         for e in range(epoch_start, epochs + 1):
@@ -548,7 +546,9 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     if debug_mode:
         data()
     else:
-        train(ckpt)
+        # session = tf_debug.LocalCLIDebugWrapperSession(session)
+        # session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
+        train(session ,ckpt)
 
 
 if __name__ == "__main__":

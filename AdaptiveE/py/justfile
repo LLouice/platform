@@ -12,6 +12,15 @@ alias dprm := conve-no_dropout-reg-masked
 alias idprm := conve-no_dropout-reg-masked-dbg
 alias bloss := conve-no_dropout-reg-masked-B_loss
 alias ibloss := conve-no_dropout-reg-masked-B_loss-dbg
+alias gce := conve-no_dropout-reg-masked-GCELoss
+
+
+conve-no_dropout-reg-masked-GCELoss: fetch_train clean-conve-no_dropout-reg-masked-GCELoss
+    python train.py --ex conve-no_dropout-reg-masked-GCELoss  --suffix _dis --model_name ConvE --visible_device_list 0 --batch_size_trn 400 --batch_size_dev 4000 -e 2000 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-masked-GCELoss:
+    rm -rf logs/conve-no_dropout-reg-masked-GCELoss
 
 
 conve-no_dropout-reg-masked-B_loss-dbg: fetch_train clean-conve-no_dropout-reg-masked-B_loss-dbg
