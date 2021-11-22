@@ -301,18 +301,24 @@ class ConvE(object):
 
         self.path = f"{prefix}ConvE/"
 
+        self.regularizer = tf.contrib.layers.l2_regularizer(scale=0.0003)
+
     def embedding_lookup(self, e1, rel, pretrained_embeddings=None):
         # [NE, E] - lookup -> [bs, E] -> [bs, E, 1]
         with Scope("embedding_lookup", prefix=self.path, reuse=self.reuse):
             self.emb_e = tf.get_variable(
                 'emb_e',
                 shape=[self.NE, self.E],
-                initializer=tf.glorot_normal_initializer())
+                initializer=tf.glorot_normal_initializer(),
+                regularizer=self.regularizer,
+            )
 
             self.emb_rel = tf.get_variable(
                 'emb_r',
                 shape=[self.NR, self.E],
-                initializer=tf.glorot_normal_initializer())
+                initializer=tf.glorot_normal_initializer(),
+                regularizer=self.regularizer,
+            )
 
             if pretrained_embeddings is not None:
                 e_emb_extra = tf.nn.embedding_lookup(
@@ -337,7 +343,9 @@ class ConvE(object):
         return e1_emb, rel_emb
 
     def conv(self, x):
-        conv = tf.layers.Conv2D(self.C, kernel_size=(3, 3))
+        conv = tf.layers.Conv2D(self.C,
+                                kernel_size=(3, 3),
+                                kernel_regularizer=self.regularizer)
         return conv(x)
 
     def transe(self, triple, neg_triple):
@@ -382,8 +390,8 @@ class ConvE(object):
     def ic_emb(self, x, training):
         with Scope("ic_emb", prefix=self.path, reuse=self.reuse):
             self.bn = tf.layers.BatchNormalization(axis=-1, name="bn_inp")
-            self.dp = tf.layers.Dropout(rate=self.inp_dp, name="dp_inp")
-            x = self.dp(self.bn(x, training=training), training=training)
+            # self.dp = tf.layers.Dropout(rate=self.inp_dp, name="dp_inp")
+            # x = self.dp(self.bn(x, training=training), training=training)
             x = self.bn(x, training=training)
         return x
 
@@ -404,6 +412,7 @@ class ConvE(object):
                 activation=None,
                 use_bias=None,
                 kernel_initializer=tf.glorot_normal_initializer(),
+                kernel_regularizer=self.regularizer,
                 name=name)
             # x = tf.layers.Dropout(rate=self.last_dp)(x, training=training)
             x = tf.layers.BatchNormalization(axis=-1,
@@ -456,8 +465,8 @@ class ConvE(object):
             # x = tf.layers.Dropout(rate=self.hid_dp)(x, training=training)
             x_hid = tf.layers.flatten(x, name="flatten")
             # [B, E'] -> [B, E]
-            x_hid = tf.layers.BatchNormalization(axis=-1,
-                                                 name="bn_hid")(x_hid, training=training)
+            x_hid = tf.layers.BatchNormalization(axis=-1, name="bn_hid")(
+                x_hid, training=training)
             # x0 = self.fc(x_hid, training=training, name="fc_label")
             x1 = self.fc(x_hid, training=training)
             # logit_label = self.pred(x0, name="pred_label")
@@ -1047,9 +1056,15 @@ class Export(object):
                 self.loss_margin = tf.reduce_mean(tf.maximum(
                     dis_pos - dis_neg + margin, 0),
                                                   name="loss_margin")
-                self.loss = tf.add(self.loss_model,
-                                   self.loss_margin,
-                                   name="loss")
+                # self.loss = tf.add(self.loss_model,
+                #                    self.loss_margin,
+                # name="loss")
+                self.loss = tf.add_n([
+                    self.loss_model,
+                    self.loss_margin,
+                    tf.losses.get_regularization_loss(),
+                ],
+                                     name="loss")
             else:
                 logits_label, logits = logits
                 print("using prob_loss...")
