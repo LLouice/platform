@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 from const import NE, NR, TEST_SIZE, TRAIN_SIZE, VAL_SIZE
+from losses import BootstrappedSigmoidClassificationLoss
 from utils import Scope, scatter_update_tensor, set_gpu, write_graph
 
 # build create static ops
@@ -1071,12 +1072,24 @@ class Export(object):
                     margin=1.0):
         with tf.name_scope('loss'):
             if not self.use_other_loss:
-                self.loss_model = tf.reduce_sum(
-                    tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
-                                                    logits=logits *
-                                                    masked_labels,
-                                                    label_smoothing=0.1),
+                # self.loss_model = tf.reduce_sum(
+                #     tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
+                #                                     logits=logits *
+                #                                     masked_labels,
+                #                                     label_smoothing=0.1),
+                #     name="loss_model")
+                self.loss_model = tf.reduce_mean(
+                    BootstrappedSigmoidClassificationLoss(
+                        0.95, bootstrap_type='hard')(logits * masked_labels,
+                                                     labels),
                     name="loss_model")
+                print(self.loss_model)
+
+                tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
+                    multi_class_labels=labels,
+                    logits=logits * masked_labels,
+                    label_smoothing=0.1),
+                              name="loss_model")
                 self.loss_margin = tf.reduce_mean(tf.maximum(
                     dis_pos - dis_neg + margin, 0),
                                                   name="loss_margin")
@@ -1088,7 +1101,8 @@ class Export(object):
                     self.loss_margin,
                     tf.losses.get_regularization_loss(),
                 ],
-                                     name="loss")
+                                     name="loss_all")
+                print(self.loss)
             else:
                 logits_label, logits = logits
                 print("using prob_loss...")

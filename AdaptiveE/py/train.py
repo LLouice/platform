@@ -335,7 +335,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         pass
 
     op_global_step = graph.get_operation_by_name("optimizer/global_step")
-    t_loss = graph.get_tensor_by_name("loss/loss:0")
+    t_loss = graph.get_tensor_by_name("loss/loss_all:0")
     t_loss_model = graph.get_tensor_by_name("loss/loss_model:0")
     t_loss_margin = graph.get_tensor_by_name("loss/loss_margin:0")
 
