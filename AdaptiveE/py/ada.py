@@ -384,6 +384,7 @@ class ConvE(object):
             self.bn = tf.layers.BatchNormalization(axis=-1, name="bn_inp")
             self.dp = tf.layers.Dropout(rate=self.inp_dp, name="dp_inp")
             x = self.dp(self.bn(x, training=training), training=training)
+            x = self.bn(x, training=training)
         return x
 
     def ic_hid(self, x, training):
@@ -404,7 +405,7 @@ class ConvE(object):
                 use_bias=None,
                 kernel_initializer=tf.glorot_normal_initializer(),
                 name=name)
-            x = tf.layers.Dropout(rate=self.last_dp)(x, training=training)
+            # x = tf.layers.Dropout(rate=self.last_dp)(x, training=training)
             x = tf.layers.BatchNormalization(axis=-1,
                                              name="bn2")(x, training=training)
             x = tf.nn.relu(x)
@@ -452,14 +453,17 @@ class ConvE(object):
             x = tf.layers.BatchNormalization(axis=-1,
                                              name="bn1")(x, training=training)
             x = tf.nn.relu(x)
-            x = tf.layers.Dropout(rate=self.hid_dp)(x, training=training)
+            # x = tf.layers.Dropout(rate=self.hid_dp)(x, training=training)
             x_hid = tf.layers.flatten(x, name="flatten")
             # [B, E'] -> [B, E]
-            x0 = self.fc(x_hid, training=training, name="fc_label")
+            x_hid = tf.layers.BatchNormalization(axis=-1,
+                                                 name="bn_hid")(x_hid, training=training)
+            # x0 = self.fc(x_hid, training=training, name="fc_label")
             x1 = self.fc(x_hid, training=training)
-            logit_label = self.pred(x0, name="pred_label")
+            # logit_label = self.pred(x0, name="pred_label")
             logit = self.pred(x1)
-        return (logit_label, logit), dis_pos, dis_neg
+        # return (logit_label, logit), dis_pos, dis_neg
+        return logit, dis_pos, dis_neg
 
 
 def test():
@@ -523,7 +527,8 @@ class Export(object):
                  output_dir="export",
                  H=32,
                  model_name="AdaE",
-                 use_transe2=False):
+                 use_transe2=False,
+                 use_other_loss=False):
         super().__init__()
         self.NE = NE
         self.NR = NR
@@ -535,6 +540,7 @@ class Export(object):
         self.output_dir = output_dir + f"/{model_name}"
         self.model_name = model_name
         self.use_transe2 = use_transe2
+        self.use_other_loss = use_other_loss
         print(f"Export::use_transe2: {self.use_transe2}")
 
     def build(self):
@@ -701,8 +707,8 @@ class Export(object):
 
         logits_val, _, _ = self._build_forward(e1_val, rel_val, False, True,
                                                triple_val, neg_triple_val)
-        if len(logits_val) > 1:
-            logits_val = logits_val[1]
+        # if len(logits_val) > 1:
+        #     logits_val = logits_val[1]
 
         _, _, _, self.rank_val, self.hits1_val, self.hits3_val, self.hits10_val, _ = self._build_eval(
             logits_val,
@@ -731,8 +737,8 @@ class Export(object):
         logits_test, _, _ = self._build_forward(e1_test, rel_test, False, True,
                                                 triple_test, neg_triple_test)
 
-        if len(logits_test) > 1:
-            logits_test = logits_test[1]
+        # if len(logits_test) > 1:
+        #     logits_test = logits_test[1]
 
         _, _, _, self.rank_test, self.hits1_test, self.hits3_test, self.hits10_test, _ = self._build_eval(
             logits_test,
@@ -1032,7 +1038,7 @@ class Export(object):
 
     def _build_loss(self, labels, logits, dis_pos, dis_neg, margin=1.0):
         with tf.name_scope('loss'):
-            if self.model_name == "AdaE":
+            if not self.use_other_loss:
                 self.loss_model = tf.reduce_sum(
                     tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
                                                     logits=logits,

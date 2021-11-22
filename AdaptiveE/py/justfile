@@ -5,6 +5,24 @@ LOCAL_DIR := "/run/media/llouice/LLouice/dev/Rust/my/doing/Do/platform/AdaptiveE
 
 alias prob := conve-dis-prob_loss
 alias iprob := conve-dis-prob_loss-dbg
+alias dp := conve-no_dropout
+alias idp := conve-no_dropout-dbg
+
+
+conve-no_dropout-dbg: fetch_train clean-conve-no_dropout-dbg
+    python -m pdb train.py --ex conve-no_dropout-dbg  --suffix _dis --model_name ConvE --visible_device_list 0 --batch_size_trn 400 --batch_size_dev 4000 -e 5000 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-dbg:
+    rm -rf logs/conve-no_dropout-dbg
+
+
+conve-no_dropout: fetch_train clean-conve-no_dropout
+    python train.py --ex conve-no_dropout  --suffix _dis --model_name ConvE --visible_device_list 0 --batch_size_trn 400 --batch_size_dev 4000 -e 5000 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout:
+    rm -rf logs/conve-no_dropout
 
 
 conve-dis-prob_loss: fetch_train clean-conve-dis-prob_loss
