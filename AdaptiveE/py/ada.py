@@ -420,6 +420,7 @@ class ConvE(object):
             # x = tf.layers.Dropout(rate=self.last_dp)(x, training=training)
             x = tf.layers.BatchNormalization(axis=-1,
                                              name="bn2")(x, training=training)
+            x = tf.layers.Dropout(rate=self.last_dp)(x, training=training)
             x = tf.nn.relu(x)
         return x
 
