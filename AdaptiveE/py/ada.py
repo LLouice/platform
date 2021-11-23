@@ -538,7 +538,7 @@ class Export(object):
                  H=32,
                  model_name="AdaE",
                  use_transe2=False,
-                 use_other_loss=False):
+                 use_other_loss=False, use_masked_label=True, q=0.7):
         super().__init__()
         self.NE = NE
         self.NR = NR
@@ -551,6 +551,8 @@ class Export(object):
         self.model_name = model_name
         self.use_transe2 = use_transe2
         self.use_other_loss = use_other_loss
+        self.use_masked_label = use_masked_label
+        self.q = q
         print(f"Export::use_transe2: {self.use_transe2}")
 
     def build(self):
@@ -1083,9 +1085,13 @@ class Export(object):
                 #         0.95, bootstrap_type='hard')(logits * masked_labels,
                 #                                      labels),
                 #     name="loss_model")
-                self.loss_model = tf.reduce_mean(GCELoss()(
-                    logits * masked_labels, labels),
-                                                 name="loss_model")
+                if self.use_masked_label:
+                    self.loss_model = tf.reduce_mean(GCELoss(self.q)(
+                        logits * masked_labels, labels),
+                                                     name="loss_model")
+                else:
+                    self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits, labels),
+                                                    name="loss_model")
                 print(self.loss_model)
 
                 tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
@@ -1336,7 +1342,7 @@ def build_graph(E: int = 512,
                 v_dim: int = 16,
                 H: int = 32,
                 model_name: str = "AdaE",
-                use_transe2: bool = False) -> None:
+                use_transe2: bool = False, use_masked_label=True, q=0./.7) -> None:
     print(f"build_graph:: model: {model_name} use_transe: {use_transe2}")
     if model_name == "AdaE":
         export = Export(NE,
@@ -1345,7 +1351,7 @@ def build_graph(E: int = 512,
                         C,
                         v_dim,
                         model_name=model_name,
-                        use_transe2=use_transe2)
+                        use_transe2=use_transe2, use_masked_label=use_masked_label, q=q)
     else:
         export = Export(NE,
                         NR,
@@ -1353,7 +1359,7 @@ def build_graph(E: int = 512,
                         C,
                         H=H,
                         model_name=model_name,
-                        use_transe2=use_transe2)
+                        use_transe2=use_transe2, use_masked_label=use_masked_label, q=q)
     export.build()
 
 

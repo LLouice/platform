@@ -58,6 +58,8 @@ class TrainConfig:
     suffix: str = ""
     use_pretrained: bool = False
     use_transe: bool = False
+    use_masked_label: bool = True
+    q: float = 0.7
     debug: bool = False
 
     def destruct(self):
@@ -83,6 +85,8 @@ class TrainConfig:
                self.suffix, \
                self.use_pretrained, \
                self.use_transe, \
+               self.use_masked_label, \
+               self.q, \
                self.debug,
 
     @classmethod
@@ -99,6 +103,7 @@ class TrainConfig:
             args.steps = args.train_size // args.batch_size_trn
 
         repeat_num = args.epochs * args.steps
+        use_masked_label = not args.no_masked_label
 
         return cls(
                 logdir, \
@@ -123,6 +128,8 @@ class TrainConfig:
                 args.suffix, \
                 args.use_pretrained, \
                 args.use_transe, \
+                use_masked_label, \
+                args.q, \
                 args.debug,
             )
 
@@ -245,6 +252,10 @@ def parse_cli():
                         help="use pretrained w2v embeddings",
                         action="store_true")
     parser.add_argument('--use_transe', help="use transe", action="store_true")
+    parser.add_argument('--no_masked_label',
+                        help="use masked label",
+                        action="store_true")
+    parser.add_argument('--q', help="GCE q", default=0.7, type=float)
     parser.add_argument('--debug', help="debug mode", action="store_true")
 
     args = parser.parse_args()
@@ -257,14 +268,17 @@ def load_pretrained_embeddings(suffix):
 
 
 def run(train_config: TrainConfig) -> Result[None, str]:
-    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, ex, model_name, suffix, use_pretrained, use_transe, debug_mode = train_config.destruct(
+    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, ex, model_name, suffix, use_pretrained, use_transe, use_masked_label, q, debug_mode = train_config.destruct(
     )
 
     config_proto = build_config_proto(visible_device_list,
                                       log_device_placement)
 
     # build network
-    build_graph(model_name=model_name, use_transe2=use_transe)
+    build_graph(model_name=model_name,
+                use_transe2=use_transe,
+                use_masked_label=use_masked_label,
+                q=q)
 
     session = tf.Session(config=config_proto)
     graph = session.graph
@@ -388,7 +402,8 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     if use_transe:
         feed_dict[ph_use_transe] = True
     if use_pretrained:
-        feed_dict[ph_pretrained_embeddings] = load_pretrained_embeddings(suffix)
+        feed_dict[ph_pretrained_embeddings] = load_pretrained_embeddings(
+            suffix)
 
     # init step
     def init():
@@ -496,7 +511,6 @@ def run(train_config: TrainConfig) -> Result[None, str]:
             logger.info(f"restore form ckpt {ckpt}")
             restore(ckpt)
 
-
         global_step = 0
         for e in range(epoch_start, epochs + 1):
             total_loss = 0.
@@ -548,7 +562,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     else:
         # session = tf_debug.LocalCLIDebugWrapperSession(session)
         # session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
-        train(session ,ckpt)
+        train(session, ckpt)
 
 
 if __name__ == "__main__":
