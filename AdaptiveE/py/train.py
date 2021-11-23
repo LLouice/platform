@@ -256,7 +256,7 @@ def parse_cli():
     parser.add_argument(
         "-M",
         "--model_name",
-        choices=["AdaE", "ConvE"],
+        choices=["AdaE", "AdaE2", "ConvE"],
         default="AdaE",
     )
     parser.add_argument(
