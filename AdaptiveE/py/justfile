@@ -17,6 +17,69 @@ alias gce2 := conve-no_dropout-reg-GCELoss
 alias gce3 := conve-no_dropout-reg-GCELoss_q1
 alias sce := conve-no_dropout-reg-SCELoss
 alias sce2 := conve-no_dropout-reg-SCELoss_a0_1b6
+alias sce3 := conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2
+alias sce4 := conve-no_dropout-reg-SCELoss_a6_b2_5-wd1e2
+alias sce5 := conve-no_dropout-reg-SCELoss_a0_1_b6-wd1e2
+alias sce6 := conve-no_dropout-reg-SCELoss_a2_4_b1-wd1e2
+alias sce7 := conve-no_dropout-reg-SCELoss_a0_1_b15-wd1e2
+alias sce8 := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2
+alias sce9 := conve-no_dropout-reg-SCELoss_a0_1_b30-wd1e2
+
+
+conve-no_dropout-reg-SCELoss_a0_1_b30-wd1e2: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1_b30-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 30.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a0_1_b30-wd1e2  --suffix _dis --model_name ConvE --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-SCELoss_a0_1_b30-wd1e2:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1_b30-wd1e2
+
+
+conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 20.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2
+
+
+conve-no_dropout-reg-SCELoss_a0_1_b15-wd1e2: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1_b15-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 15.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a0_1_b15-wd1e2  --suffix _dis --model_name ConvE --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-SCELoss_a0_1_b15-wd1e2:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1_b15-wd1e2
+
+
+conve-no_dropout-reg-SCELoss_a2_4_b1-wd1e2: fetch_train clean-conve-no_dropout-reg-SCELoss_a2_4_b1-wd1e2
+    python train.py --wd 0.01 --alpha 2.4 --beta 1.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a2_4_b1-wd1e2  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-SCELoss_a2_4_b1-wd1e2:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a2_4_b1-wd1e2
+
+
+conve-no_dropout-reg-SCELoss_a0_1_b6-wd1e2: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1_b6-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 6.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a0_1_b6-wd1e2  --suffix _dis --model_name ConvE --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-SCELoss_a0_1_b6-wd1e2:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1_b6-wd1e2
+
+
+conve-no_dropout-reg-SCELoss_a6_b2_5-wd1e2: fetch_train clean-conve-no_dropout-reg-SCELoss_a6_b2_5-wd1e2
+    python train.py --wd 0.01 --alpha 6.0 --beta 1.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a6_b2_5-wd1e2  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-SCELoss_a6_b2_5-wd1e2:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a6_b2_5-wd1e2
+
+
+conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 10.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2  --suffix _dis --model_name ConvE --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2
 
 
 conve-no_dropout-reg-SCELoss_a0_1b6: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1b6

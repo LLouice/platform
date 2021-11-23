@@ -46,6 +46,7 @@ class TrainConfig:
     batch_size_trn: int = 4
     batch_size_dev: int = 8
     lr: float = 0.001
+    wd: float = 0.0003  # 3e-4
     opt: str = "Adam"
     epochs: int = 100
     epoch_start: int = 1
@@ -76,6 +77,7 @@ class TrainConfig:
                self.batch_size_trn, \
                self.batch_size_dev, \
                self.lr, \
+               self.wd, \
                self.opt, \
                self.epochs, \
                self.epoch_start, \
@@ -122,6 +124,7 @@ class TrainConfig:
                 args.batch_size_trn, \
                 args.batch_size_dev, \
                 args.lr, \
+                args.wd, \
                 args.opt, \
                 args.epochs, \
                 epoch_start, \
@@ -214,6 +217,10 @@ def parse_cli():
                         help="learning rate",
                         default=0.001,
                         type=float)
+    parser.add_argument("--wd",
+                        help="weight decay",
+                        default=0.0003,
+                        type=float)
     parser.add_argument("--opt",
                         help="select optimizer",
                         choices=("Adam", "Sgd"),
@@ -281,7 +288,7 @@ def load_pretrained_embeddings(suffix):
 
 
 def run(train_config: TrainConfig) -> Result[None, str]:
-    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, ex, model_name, suffix, use_pretrained, use_transe, use_masked_label, q, alpha, beta, A, debug_mode = train_config.destruct(
+    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, wd, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, ex, model_name, suffix, use_pretrained, use_transe, use_masked_label, q, alpha, beta, A, debug_mode = train_config.destruct(
     )
 
     config_proto = build_config_proto(visible_device_list,
@@ -369,7 +376,9 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     op_global_step = graph.get_operation_by_name("optimizer/global_step")
     t_loss = graph.get_tensor_by_name("loss/loss_all:0")
     t_loss_model = graph.get_tensor_by_name("loss/loss_model:0")
-    t_loss_margin = graph.get_tensor_by_name("loss/loss_margin:0")
+    # t_loss_margin = graph.get_tensor_by_name("loss/loss_margin:0")
+    t_loss_ce = graph.get_tensor_by_name("loss/loss_ce:0")
+    t_loss_rce = graph.get_tensor_by_name("loss/loss_rce:0")
 
     # eval op
     op_rank_val = graph.get_operation_by_name("eval_val/rank_val")
@@ -533,12 +542,13 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         for e in range(epoch_start, epochs + 1):
             total_loss = 0.
             total_loss_model = 0.
-            total_loss_margin = 0.
+            total_loss_ce = 0.
+            total_loss_rce = 0.
             for i in range(steps):
                 if i == 0:
-                    loss, loss_model, loss_margin, summaries, summaries_grads, summaries_weights, global_step, _ = session.run(
+                    loss, loss_model, loss_ce, loss_rce, summaries, summaries_grads, summaries_weights, global_step, _ = session.run(
                         [
-                            t_loss, t_loss_model, t_loss_margin,
+                            t_loss, t_loss_model, t_loss_ce, t_loss_rce,
                             op_summary.outputs[0], op_grads_summary.outputs[0],
                             op_weights_summary.outputs[0],
                             op_global_step.outputs[0], op_optimize
@@ -546,9 +556,9 @@ def run(train_config: TrainConfig) -> Result[None, str]:
                     writer.add_summary(summaries_grads, global_step)
                     writer.add_summary(summaries_weights, global_step)
                 else:
-                    loss, loss_model, loss_margin, summaries, global_step, _ = session.run(
+                    loss, loss_model, loss_ce, loss_rce, summaries, global_step, _ = session.run(
                         [
-                            t_loss, t_loss_model, t_loss_margin,
+                            t_loss, t_loss_model, t_loss_ce, t_loss_rce,
                             op_summary.outputs[0], op_global_step.outputs[0],
                             op_optimize
                         ], )
@@ -556,22 +566,27 @@ def run(train_config: TrainConfig) -> Result[None, str]:
                 # feed_dict={ph_batch_size_dev: np.int64(batch_size_dev)})
                 total_loss += loss
                 total_loss_model += loss_model
-                total_loss_margin += loss_margin
+                total_loss_ce += loss_ce
+                total_loss_rce += loss_rce
 
                 writer.add_summary(summaries, global_step)
 
             loss = total_loss / steps
             loss_model = total_loss_model / steps
-            loss_margin = total_loss_margin / steps
+            loss_ce = total_loss_ce / steps
+            loss_rce = total_loss_rce / steps
+            ratio = loss_rce / loss_ce
             logger.info(
-                f"[{e}] loss: {loss}\tloss_model: {loss_model}\tloss_margin: {loss_margin}"
+                f"[{e}] loss: {loss}\tloss_model: {loss_model}\tloss_ce: {loss_ce}\tloss_rce:{loss_rce}\tratio:{ratio}"
             )
 
-            if e % eval_interval == 0:
+            if e % 5 == 0:
                 eval_value = eval(Dev.Val, global_step)
-                ckpt = Ckpt(eval_value.rank, loss, e, global_step)
-                save(ckpt)
-
+                # ckpt = Ckpt(eval_value.rank, loss, e, global_step)
+                # save(ckpt)
+                if e % eval_interval == 0:
+                    ckpt = Ckpt(eval_value.rank, loss, e, global_step)
+                    save(ckpt)
         session.close()
         writer.close()
 

@@ -285,6 +285,7 @@ class ConvE(object):
         inp_dp=0.2,
         hid_dp=0.2,
         last_dp=0.3,
+        wd=0.0003,
         prefix="",
         reuse=None,
     ):
@@ -303,7 +304,7 @@ class ConvE(object):
 
         self.path = f"{prefix}ConvE/"
 
-        self.regularizer = tf.contrib.layers.l2_regularizer(scale=0.0003)
+        self.regularizer = tf.contrib.layers.l2_regularizer(scale=wd)
 
     def embedding_lookup(self, e1, rel, pretrained_embeddings=None):
         # [NE, E] - lookup -> [bs, E] -> [bs, E, 1]
@@ -537,6 +538,7 @@ class Export(object):
                  v_dim=10,
                  output_dir="export",
                  H=32,
+                 wd=0.0003,
                  model_name="AdaE",
                  use_transe2=False,
                  use_other_loss=False,
@@ -552,6 +554,7 @@ class Export(object):
         self.C = C
         self.H = H
         self.v_dim = v_dim
+        self.wd = wd
 
         self.output_dir = output_dir + f"/{model_name}"
         self.model_name = model_name
@@ -1045,6 +1048,7 @@ class Export(object):
                                   self.E,
                                   self.H,
                                   self.C,
+                                  wd=self.wd,
                                   prefix=scope.prefix)
 
                 logits, dis_pos, dis_neg = model(e1, rel, training,
@@ -1068,6 +1072,7 @@ class Export(object):
                                   self.H,
                                   self.C,
                                   reuse=True,
+                                  wd=self.wd,
                                   prefix=scope.prefix)
                 logits, dis_pos, dis_neg = model(e1, rel, training,
                                                  self.pretrained_embeddings,
@@ -1083,6 +1088,7 @@ class Export(object):
                     margin=1.0):
         with tf.name_scope('loss'):
             loss_fn = symmetric_cross_entropy(self.alpha, self.beta, self.A)
+            print(f"use use_other_loss: {self.use_other_loss}")
             if not self.use_other_loss:
                 # self.loss_model = tf.reduce_sum(
                 #     tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
@@ -1100,39 +1106,42 @@ class Export(object):
                     #     logits * masked_labels, labels),
                     #                                  name="loss_model")
 
-                    self.loss_model = loss_fn(
+                    print("using SCELoss...")
+                    self.loss_ce, self.loss_rce = loss_fn(
                         labels,
                         tf.sigmoid(logits) * masked_labels)
-                    self.loss_model = tf.identity(self.loss_model,
-                                                  name="loss_model")
+                    self.loss_model = tf.add(self.loss_ce,
+                                             self.loss_rce,
+                                             name="loss_model")
 
                 else:
                     # self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits, labels),
                     #                                 name="loss_model")
 
-                    self.loss_model = loss_fn(labels, tf.sigmoid(logits))
-                    self.loss_model = tf.identity(self.loss_model,
-                                                  name="loss_model")
+                    print("using SCELoss...")
+                    self.loss_ce, self.loss_rce = loss_fn(
+                        labels,
+                        tf.sigmoid(logits) * masked_labels)
+                    self.loss_model = tf.add(self.loss_ce,
+                                             self.loss_rce,
+                                             name="loss_model")
 
                 print(self.loss_model)
 
-                tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
-                    multi_class_labels=labels,
-                    logits=logits * masked_labels,
-                    label_smoothing=0.1),
-                              name="loss_model")
-                self.loss_margin = tf.reduce_mean(tf.maximum(
-                    dis_pos - dis_neg + margin, 0),
-                                                  name="loss_margin")
+                # tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
+                #     multi_class_labels=labels,
+                #     logits=logits * masked_labels,
+                #     label_smoothing=0.1),
+                #               name="loss_model")
+                # self.loss_margin = tf.reduce_mean(tf.maximum(
+                #     dis_pos - dis_neg + margin, 0),
+                #                                   name="loss_margin")
                 # self.loss = tf.add(self.loss_model,
                 #                    self.loss_margin,
                 # name="loss")
-                self.loss = tf.add_n([
-                    self.loss_model,
-                    self.loss_margin,
-                    tf.losses.get_regularization_loss(),
-                ],
-                                     name="loss_all")
+                self.loss = tf.add(self.loss_model,
+                                   tf.losses.get_regularization_loss(),
+                                   name="loss_all")
                 print(self.loss)
             else:
                 logits_label, logits = logits
@@ -1185,9 +1194,11 @@ class Export(object):
             # hloss_s = tf.summary.histogram('histogram loss', self.loss)
 
             loss_model_s = tf.summary.scalar('loss/model', self.loss_model)
-            loss_margin_s = tf.summary.scalar('loss/margin', self.loss_margin)
+            loss_ce_s = tf.summary.scalar('loss/ce', self.loss_ce)
+            loss_rce_s = tf.summary.scalar('loss/rce', self.loss_rce)
             self.summary_op = tf.summary.merge(
-                [loss_s, loss_model_s, loss_margin_s], name="summary_op")
+                [loss_s, loss_model_s, loss_ce_s, loss_rce_s],
+                name="summary_op")
 
             self.ph_rank_val = tf.placeholder(tf.float32, (), "rank_val")
             self.ph_hit1_val = tf.placeholder(tf.float32, (), "hit1_val")
@@ -1363,6 +1374,7 @@ def build_graph(E: int = 512,
                 C: int = 32,
                 v_dim: int = 16,
                 H: int = 32,
+                wd: float = 0.0003,
                 model_name: str = "AdaE",
                 use_transe2: bool = False,
                 use_masked_label=True,
@@ -1378,6 +1390,7 @@ def build_graph(E: int = 512,
             E,
             C,
             v_dim,
+            wd=wd,
             model_name=model_name,
             use_transe2=use_transe2,
             use_masked_label=use_masked_label,
@@ -1393,6 +1406,7 @@ def build_graph(E: int = 512,
             E,
             C,
             H=H,
+            wd=wd,
             model_name=model_name,
             use_transe2=use_transe2,
             use_masked_label=use_masked_label,

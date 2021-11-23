@@ -893,9 +893,13 @@ def symmetric_cross_entropy(alpha, beta, A=1e-4):
         y_pred_1 = tf.clip_by_value(y_pred_1, 1e-7, 1.0)
         y_true_2 = tf.clip_by_value(y_true_2, A, 1.0)
 
-        return alpha * tf.reduce_mean(-tf.reduce_sum(
-            y_true_1 * tf.log(y_pred_1), axis=-1)) + beta * tf.reduce_mean(
-                -tf.reduce_sum(y_pred_2 * tf.log(y_true_2), axis=-1))
+        loss_ce = alpha * tf.reduce_mean(
+            -tf.reduce_sum(y_true_1 * tf.log(y_pred_1), axis=-1))
+        loss_ce = tf.identity(loss_ce, name="loss_ce")
+        loss_rce = beta * tf.reduce_mean(
+            -tf.reduce_sum(y_pred_2 * tf.log(y_true_2), axis=-1))
+        loss_rce = tf.identity(loss_rce, name="loss_rce")
+        return loss_ce, loss_rce
 
     return loss
 
