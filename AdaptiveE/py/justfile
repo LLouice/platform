@@ -15,6 +15,24 @@ alias ibloss := conve-no_dropout-reg-masked-B_loss-dbg
 alias gce := conve-no_dropout-reg-masked-GCELoss
 alias gce2 := conve-no_dropout-reg-GCELoss
 alias gce3 := conve-no_dropout-reg-GCELoss_q1
+alias sce := conve-no_dropout-reg-SCELoss
+alias sce2 := conve-no_dropout-reg-SCELoss_a0_1b6
+
+
+conve-no_dropout-reg-SCELoss_a0_1b6: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1b6
+    python train.py --alpha 0.1 --beta 6.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a0_1b6  --suffix _dis --model_name ConvE --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 2000 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-SCELoss_a0_1b6:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1b6
+
+
+conve-no_dropout-reg-SCELoss: fetch_train clean-conve-no_dropout-reg-SCELoss
+    python train.py --no_masked_label --ex conve-no_dropout-reg-SCELoss  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 400 --batch_size_dev 4000 -e 2000 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-conve-no_dropout-reg-SCELoss:
+    rm -rf logs/conve-no_dropout-reg-SCELoss
 
 
 conve-no_dropout-reg-GCELoss_q1: fetch_train clean-conve-no_dropout-reg-GCELoss_q1

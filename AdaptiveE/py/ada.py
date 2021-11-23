@@ -4,7 +4,8 @@ import numpy as np
 import tensorflow as tf
 
 from const import NE, NR, TEST_SIZE, TRAIN_SIZE, VAL_SIZE
-from losses import BootstrappedSigmoidClassificationLoss, GCELoss
+from losses import (BootstrappedSigmoidClassificationLoss, GCELoss,
+                    symmetric_cross_entropy)
 from utils import Scope, scatter_update_tensor, set_gpu, write_graph
 
 # build create static ops
@@ -538,7 +539,12 @@ class Export(object):
                  H=32,
                  model_name="AdaE",
                  use_transe2=False,
-                 use_other_loss=False, use_masked_label=True, q=0.7):
+                 use_other_loss=False,
+                 use_masked_label=True,
+                 q=0.7,
+                 alpha=0.1,
+                 beta=1,
+                 A=1e-4):
         super().__init__()
         self.NE = NE
         self.NR = NR
@@ -553,6 +559,9 @@ class Export(object):
         self.use_other_loss = use_other_loss
         self.use_masked_label = use_masked_label
         self.q = q
+        self.alpha = alpha
+        self.beta = beta
+        self.A = A
         print(f"Export::use_transe2: {self.use_transe2}")
 
     def build(self):
@@ -1073,6 +1082,7 @@ class Export(object):
                     dis_neg,
                     margin=1.0):
         with tf.name_scope('loss'):
+            loss_fn = symmetric_cross_entropy(self.alpha, self.beta, self.A)
             if not self.use_other_loss:
                 # self.loss_model = tf.reduce_sum(
                 #     tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
@@ -1086,12 +1096,24 @@ class Export(object):
                 #                                      labels),
                 #     name="loss_model")
                 if self.use_masked_label:
-                    self.loss_model = tf.reduce_mean(GCELoss(self.q)(
-                        logits * masked_labels, labels),
-                                                     name="loss_model")
+                    # self.loss_model = tf.reduce_mean(GCELoss(self.q)(
+                    #     logits * masked_labels, labels),
+                    #                                  name="loss_model")
+
+                    self.loss_model = loss_fn(
+                        labels,
+                        tf.sigmoid(logits) * masked_labels)
+                    self.loss_model = tf.identity(self.loss_model,
+                                                  name="loss_model")
+
                 else:
-                    self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits, labels),
-                                                    name="loss_model")
+                    # self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits, labels),
+                    #                                 name="loss_model")
+
+                    self.loss_model = loss_fn(labels, tf.sigmoid(logits))
+                    self.loss_model = tf.identity(self.loss_model,
+                                                  name="loss_model")
+
                 print(self.loss_model)
 
                 tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
@@ -1342,24 +1364,43 @@ def build_graph(E: int = 512,
                 v_dim: int = 16,
                 H: int = 32,
                 model_name: str = "AdaE",
-                use_transe2: bool = False, use_masked_label=True, q=0./.7) -> None:
+                use_transe2: bool = False,
+                use_masked_label=True,
+                q=0.7,
+                alpha=0.1,
+                beta=1.0,
+                A=1e-4) -> None:
     print(f"build_graph:: model: {model_name} use_transe: {use_transe2}")
     if model_name == "AdaE":
-        export = Export(NE,
-                        NR,
-                        E,
-                        C,
-                        v_dim,
-                        model_name=model_name,
-                        use_transe2=use_transe2, use_masked_label=use_masked_label, q=q)
+        export = Export(
+            NE,
+            NR,
+            E,
+            C,
+            v_dim,
+            model_name=model_name,
+            use_transe2=use_transe2,
+            use_masked_label=use_masked_label,
+            q=q,
+            alpha=alpha,
+            beta=-beta,
+            A=A,
+        )
     else:
-        export = Export(NE,
-                        NR,
-                        E,
-                        C,
-                        H=H,
-                        model_name=model_name,
-                        use_transe2=use_transe2, use_masked_label=use_masked_label, q=q)
+        export = Export(
+            NE,
+            NR,
+            E,
+            C,
+            H=H,
+            model_name=model_name,
+            use_transe2=use_transe2,
+            use_masked_label=use_masked_label,
+            q=q,
+            alpha=alpha,
+            beta=-beta,
+            A=A,
+        )
     export.build()
 
 

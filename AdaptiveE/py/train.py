@@ -60,6 +60,9 @@ class TrainConfig:
     use_transe: bool = False
     use_masked_label: bool = True
     q: float = 0.7
+    alpha: float = 0.1
+    beta: float = 1.0
+    A: float = 0.0001
     debug: bool = False
 
     def destruct(self):
@@ -87,6 +90,9 @@ class TrainConfig:
                self.use_transe, \
                self.use_masked_label, \
                self.q, \
+               self.alpha, \
+               self.beta, \
+               self.A, \
                self.debug,
 
     @classmethod
@@ -130,6 +136,9 @@ class TrainConfig:
                 args.use_transe, \
                 use_masked_label, \
                 args.q, \
+                args.alpha, \
+                args.beta, \
+                args.A, \
                 args.debug,
             )
 
@@ -256,6 +265,10 @@ def parse_cli():
                         help="use masked label",
                         action="store_true")
     parser.add_argument('--q', help="GCE q", default=0.7, type=float)
+    # SCE
+    parser.add_argument('--alpha', help="SCE alpha", default=0.1, type=float)
+    parser.add_argument('--beta', help="SCE beta", default=1.0, type=float)
+    parser.add_argument('--A', help="SCE A", default=0.0001, type=float)
     parser.add_argument('--debug', help="debug mode", action="store_true")
 
     args = parser.parse_args()
@@ -268,17 +281,22 @@ def load_pretrained_embeddings(suffix):
 
 
 def run(train_config: TrainConfig) -> Result[None, str]:
-    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, ex, model_name, suffix, use_pretrained, use_transe, use_masked_label, q, debug_mode = train_config.destruct(
+    logdir, repeat_num, visible_device_list, log_device_placement, train_size, val_size, test_size, batch_size_trn, batch_size_dev, lr, opt, epochs, epoch_start, steps, eval_interval, ckpt_dir, ckpt, ex, model_name, suffix, use_pretrained, use_transe, use_masked_label, q, alpha, beta, A, debug_mode = train_config.destruct(
     )
 
     config_proto = build_config_proto(visible_device_list,
                                       log_device_placement)
 
     # build network
-    build_graph(model_name=model_name,
-                use_transe2=use_transe,
-                use_masked_label=use_masked_label,
-                q=q)
+    build_graph(
+        model_name=model_name,
+        use_transe2=use_transe,
+        use_masked_label=use_masked_label,
+        q=q,
+        alpha=alpha,
+        beta=-beta,
+        A=A,
+    )
 
     session = tf.Session(config=config_proto)
     graph = session.graph
