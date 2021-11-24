@@ -517,7 +517,8 @@ class GCN2(object):
             xs = []
 
             with tf.variable_scope(f"layer_0", reuse=reuse):
-                x = tf.concat([x_e, x_rel], 1)
+                x = tf.concat([x_e, x_rel], 1)  #[None, 1024, 1]
+                x_identity_0 = x
 
             for i in range(self.order):
                 with Scope(f"layer_{i+1}", prefix=scope.prefix, reuse=reuse):
@@ -540,7 +541,7 @@ class GCN2(object):
                             x, training=training)
                         x = tf.nn.relu(x)
             with Scope("readout", prefix=scope.prefix, reuse=reuse):
-                h = tf.concat(xs, -1)
+                h = tf.concat(xs, -1)  #[None, 1024, 32 * 2]
                 h = tf.layers.BatchNormalization(axis=-1)(h, training=training)
                 h = tf.relu(h)
                 h = tf.layers.dense(
@@ -553,6 +554,13 @@ class GCN2(object):
                     bias_initializer=tf.zeros_initializer(),
                     kernel_regularizer=self.regularizer,
                 )
+                h = h + tf.layers.dense(
+                    x_identity_0,
+                    self.C,
+                    activation=None,
+                    use_bias=False,
+                    kernel_initializer=tf.glorot_normal_initializer(),
+                    kernel_regularizer=self.regularizer)
         return h
 
 
