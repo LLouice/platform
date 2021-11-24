@@ -1401,29 +1401,32 @@ class Export(object):
                 #                                      labels),
                 #     name="loss_model")
                 if self.use_masked_label:
-                    # self.loss_model = tf.reduce_mean(GCELoss(self.q)(
-                    #     logits * masked_labels, labels),
-                    #                                  name="loss_model")
+                    print("using GCELoss...")
+                    self.loss_model = tf.reduce_mean(GCELoss(self.q)(
+                        logits * masked_labels, labels),
+                                                     name="loss_model")
 
-                    print("using SCELoss...")
-                    self.loss_ce, self.loss_rce = loss_fn(
-                        labels,
-                        tf.sigmoid(logits) * masked_labels)
-                    self.loss_model = tf.add(self.loss_ce,
-                                             self.loss_rce,
-                                             name="loss_model")
+                    # print("using SCELoss...")
+                    # self.loss_ce, self.loss_rce = loss_fn(
+                    #     labels,
+                    #     tf.sigmoid(logits) * masked_labels)
+                    # self.loss_model = tf.add(self.loss_ce,
+                    #                          self.loss_rce,
+                    #                          name="loss_model")
 
                 else:
-                    # self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits, labels),
-                    #                                 name="loss_model")
+                    print("using GCELoss...")
+                    self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits,
+                                                                     labels),
+                                                     name="loss_model")
 
-                    print("using SCELoss...")
-                    self.loss_ce, self.loss_rce = loss_fn(
-                        labels,
-                        tf.sigmoid(logits) * masked_labels)
-                    self.loss_model = tf.add(self.loss_ce,
-                                             self.loss_rce,
-                                             name="loss_model")
+                    # print("using SCELoss...")
+                    # self.loss_ce, self.loss_rce = loss_fn(
+                    #     labels,
+                    #     tf.sigmoid(logits) * masked_labels)
+                    # self.loss_model = tf.add(self.loss_ce,
+                    #                          self.loss_rce,
+                    #                          name="loss_model")
 
                 print(self.loss_model)
 
@@ -1493,11 +1496,8 @@ class Export(object):
             # hloss_s = tf.summary.histogram('histogram loss', self.loss)
 
             loss_model_s = tf.summary.scalar('loss/model', self.loss_model)
-            loss_ce_s = tf.summary.scalar('loss/ce', self.loss_ce)
-            loss_rce_s = tf.summary.scalar('loss/rce', self.loss_rce)
-            self.summary_op = tf.summary.merge(
-                [loss_s, loss_model_s, loss_ce_s, loss_rce_s],
-                name="summary_op")
+            self.summary_op = tf.summary.merge([loss_s, loss_model_s],
+                                               name="summary_op")
 
             self.ph_rank_val = tf.placeholder(tf.float32, (), "rank_val")
             self.ph_hit1_val = tf.placeholder(tf.float32, (), "hit1_val")

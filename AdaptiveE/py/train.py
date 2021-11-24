@@ -377,8 +377,6 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     t_loss = graph.get_tensor_by_name("loss/loss_all:0")
     t_loss_model = graph.get_tensor_by_name("loss/loss_model:0")
     # t_loss_margin = graph.get_tensor_by_name("loss/loss_margin:0")
-    t_loss_ce = graph.get_tensor_by_name("loss/loss_ce:0")
-    t_loss_rce = graph.get_tensor_by_name("loss/loss_rce:0")
 
     # eval op
     op_rank_val = graph.get_operation_by_name("eval_val/rank_val")
@@ -542,43 +540,32 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         for e in range(epoch_start, epochs + 1):
             total_loss = 0.
             total_loss_model = 0.
-            total_loss_ce = 0.
-            total_loss_rce = 0.
             for i in range(steps):
                 if i == 0:
-                    loss, loss_model, loss_ce, loss_rce, summaries, summaries_grads, summaries_weights, global_step, _ = session.run(
+                    loss, loss_model, summaries, summaries_grads, summaries_weights, global_step, _ = session.run(
                         [
-                            t_loss, t_loss_model, t_loss_ce, t_loss_rce,
-                            op_summary.outputs[0], op_grads_summary.outputs[0],
+                            t_loss, t_loss_model, op_summary.outputs[0],
+                            op_grads_summary.outputs[0],
                             op_weights_summary.outputs[0],
                             op_global_step.outputs[0], op_optimize
                         ], )
                     writer.add_summary(summaries_grads, global_step)
                     writer.add_summary(summaries_weights, global_step)
                 else:
-                    loss, loss_model, loss_ce, loss_rce, summaries, global_step, _ = session.run(
-                        [
-                            t_loss, t_loss_model, t_loss_ce, t_loss_rce,
-                            op_summary.outputs[0], op_global_step.outputs[0],
-                            op_optimize
-                        ], )
+                    loss, loss_model, summaries, global_step, _ = session.run([
+                        t_loss, t_loss_model, op_summary.outputs[0],
+                        op_global_step.outputs[0], op_optimize
+                    ], )
 
                 # feed_dict={ph_batch_size_dev: np.int64(batch_size_dev)})
                 total_loss += loss
                 total_loss_model += loss_model
-                total_loss_ce += loss_ce
-                total_loss_rce += loss_rce
 
                 writer.add_summary(summaries, global_step)
 
             loss = total_loss / steps
             loss_model = total_loss_model / steps
-            loss_ce = total_loss_ce / steps
-            loss_rce = total_loss_rce / steps
-            ratio = loss_rce / loss_ce
-            logger.info(
-                f"[{e}] loss: {loss}\tloss_model: {loss_model}\tloss_ce: {loss_ce}\tloss_rce:{loss_rce}\tratio:{ratio}"
-            )
+            logger.info(f"[{e}] loss: {loss}\tloss_model: {loss_model}")
 
             if e % 5 == 0:
                 eval_value = eval(Dev.Val, global_step)
