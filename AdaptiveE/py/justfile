@@ -29,10 +29,37 @@ alias adae2 := AdaE2-nodp-reg-SCELoss_a0_1_b30-wd1e2
 alias iadae2 := AdaE2-nodp-reg-SCELoss_a0_1_b30-wd1e2-dbg
 alias adae3 := AdaE2-nodp-reg-SCELoss_a0_1_b30-wd1e2-resnet
 alias adae4 := AdaE2-nodp-reg-SCELoss_a0_1_b10-wd1e2-resnet
+alias adae5 := AdaE2-nodp-reg-SCELoss_a6_b1-wd1e2-resnet
+alias adae6 := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet
+alias adae7 := AdaE2-nodp-reg-SCELoss_a20_b1-wd1e2-resnet
+
+
+AdaE2-nodp-reg-SCELoss_a20_b1-wd1e2-resnet: fetch_train clean-AdaE2-nodp-reg-SCELoss_a20_b1-wd1e2-resnet
+    python train.py --wd 0.01 --alpha 6.0 --beta 1.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a20_b1-wd1e2-resnet  --suffix _dis --model_name AdaE2 --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-AdaE2-nodp-reg-SCELoss_a20_b1-wd1e2-resnet:
+    rm -rf logs/AdaE2-nodp-reg-SCELoss_a20_b1-wd1e2-resnet
+
+
+AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet: fetch_train clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet
+    python train.py --wd 0.01 --alpha 6.0 --beta 1.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet  --suffix _dis --model_name AdaE2 --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet:
+    rm -rf logs/AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet
+
+
+AdaE2-nodp-reg-SCELoss_a6_b1-wd1e2-resnet: fetch_train clean-AdaE2-nodp-reg-SCELoss_a6_b1-wd1e2-resnet
+    python train.py --wd 0.01 --alpha 6.0 --beta 1.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a6_b1-wd1e2-resnet  --suffix _dis --model_name AdaE2 --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-AdaE2-nodp-reg-SCELoss_a6_b1-wd1e2-resnet:
+    rm -rf logs/AdaE2-nodp-reg-SCELoss_a6_b1-wd1e2-resnet
 
 
 AdaE2-nodp-reg-SCELoss_a0_1_b10-wd1e2-resnet: fetch_train clean-AdaE2-nodp-reg-SCELoss_a0_1_b10-wd1e2-resnet
-    python train.py --wd 0.01 --alpha 0.1 --beta 10.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a0_1_b10-wd1e2-resnet  --suffix _dis --model_name AdaE2 --visible_device_list 0 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+    python train.py --wd 0.01 --alpha 0.1 --beta 10.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a0_1_b10-wd1e2-resnet  --suffix _dis --model_name AdaE2 --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
 
 
 clean-AdaE2-nodp-reg-SCELoss_a0_1_b10-wd1e2-resnet:

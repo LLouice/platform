@@ -451,7 +451,7 @@ class AdaE2(object):
                  pretrained_embeddings=None,
                  triple=None,
                  neg_triple=None):
-        with Scope("AdaE", prefix=self.prefix, reuse=self.reuse) as scope:
+        with Scope("AdaE2", prefix=self.prefix, reuse=self.reuse) as scope:
 
             e1_emb, rel_emb = self.embedding_lookup(e1, rel,
                                                     pretrained_embeddings)
@@ -1325,7 +1325,7 @@ class Export(object):
                                  v_dim=self.v_dim,
                                  prefix=scope.prefix)
                 elif self.model_name == "AdaE2":
-                    print("model is AdaE")
+                    print("model is AdaE2")
                     model = AdaE2(self.NE,
                                   self.NR,
                                   self.E,
@@ -1358,7 +1358,7 @@ class Export(object):
                                  reuse=True,
                                  prefix=scope.prefix)
                 elif self.model_name == "AdaE2":
-                    print("model is AdaE")
+                    print("model is AdaE2")
                     model = AdaE2(self.NE,
                                   self.NR,
                                   self.E,
@@ -1422,7 +1422,7 @@ class Export(object):
                     print("using SCELoss...")
                     self.loss_ce, self.loss_rce = loss_fn(
                         labels,
-                        tf.sigmoid(logits) * masked_labels)
+                        tf.sigmoid(logits))
                     self.loss_model = tf.add(self.loss_ce,
                                              self.loss_rce,
                                              name="loss_model")
@@ -1684,7 +1684,7 @@ def build_graph(E: int = 512,
                 beta=1.0,
                 A=1e-4) -> None:
     print(f"build_graph:: model: {model_name} use_transe: {use_transe2}")
-    if model_name == "AdaE":
+    if model_name == "AdaE" or model_name == "AdaE2":
         export = Export(
             NE,
             NR,
