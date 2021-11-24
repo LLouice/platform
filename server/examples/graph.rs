@@ -25,7 +25,6 @@ use tfrecord::{Example, ExampleWriter, Feature, RecordWriterInit};
 fn main() -> Result<()> {
     init_env_logger!();
 
-    let default_cat = RelationShip::SymptomRelateDisease.to_string();
     let mut app = App::new("kg")
         .version("1.0")
         .author("LLouice")
@@ -70,7 +69,6 @@ fn main() -> Result<()> {
             Arg::new("record")
                 .short('R')
                 .long("record")
-                .requires("cat")
                 .requires("masked_label")
                 .about("generate tfrecord"),
         )
@@ -104,7 +102,6 @@ fn main() -> Result<()> {
                     .short('c')
                     .long("cat")
                     .takes_value(true)
-                    .default_value(default_cat.as_str())
                     .about("select category"),
             ),
         );
@@ -126,6 +123,7 @@ fn main() -> Result<()> {
             .ok(),
         None => None,
     };
+    eprintln!("subset_relationship: {:?}", subset_relationship);
 
     if matches.is_present("load") {
         res = Some(Kg::load_from_file("graph_with_rev.txt"));

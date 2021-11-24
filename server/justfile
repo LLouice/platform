@@ -1,6 +1,9 @@
 default:
     @just --list
 
+record-full:
+    cargo run --example graph -- --record --masked_label
+
 record:
     cargo run --example graph -- --record --masked_label --suffix _dis --cat SYMPTOM_RELATE_DISEASE
 
