@@ -27,13 +27,133 @@ alias sce9 := conve-no_dropout-reg-SCELoss_a0_1_b30-wd1e2
 alias sce10 := conve-last_dropout-reg-SCELoss_a0_1_b30-wd1e2
 alias adae2 := AdaE2-nodp-reg-SCELoss_a0_1_b30-wd1e2
 alias iadae2 := AdaE2-nodp-reg-SCELoss_a0_1_b30-wd1e2-dbg
-alias full-sce:= full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2
+
+alias full-sce := full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2
+
+alias full-sce1 := full-conve-no_dropout-reg-SCELoss_a0_1b6-wd1e2
+alias full-sce2 := full-conve-no_dropout-reg-SCELoss_a0_1b15-wd1e2
+alias full-sce3 := full-conve-no_dropout-reg-SCELoss_a0_1b20-wd1e2
+
+alias full-a-sce := full-AdaE2-no_dropout-reg-SCELoss_a10_b1-wd1e2
+alias full-a-sce1 := full-AdaE2-no_dropout-reg-SCELoss_a15_b1-wd1e2
+alias full-a-sce2 := full-AdaE2-no_dropout-reg-SCELoss_a20_b1-wd1e2
+alias full-a-sce3 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2
+alias full-a-sce4 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b5-wd1e2
+alias full-a-sce5 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2
+
+
+# pueue
+run:
+    pueue kill
+    pueue clean
+    pueue add -s "just full-sce"
+    pueue add -a 0 -s "just full-sce1"
+    pueue add -a 1 -s "just full-sce2"
+    pueue add -a 2 -s "just full-sce3"
+
+    pueue add -a 3 -s "just full-a-sce"
+    pueue add -a 4 -s "just full-a-sce1"
+    pueue add -a 5 -s "just full-a-sce2"
+    pueue add -a 6 -s "just full-a-sce3"
+    pueue add -a 7 -s "just full-a-sce4"
+    pueue add -a 8 -s "just full-a-sce5"
+    pueue enqueue 0 1 2 3 4 5 6 7 8 9
+    pueue parallel 1
+    pueue start
+
+dry-run:
+    pueue kill
+    pueue clean
+    pueue add -s "just --dry-run full-sce"
+    pueue add -a 0 -s "just --dry-run full-sce1"
+    pueue add -a 1 -s "just --dry-run full-sce2"
+    pueue add -a 2 -s "just --dry-run full-sce3"
+
+    pueue add -a 3 -s "just --dry-run full-a-sce"
+    pueue add -a 4 -s "just --dry-run full-a-sce1"
+    pueue add -a 5 -s "just --dry-run full-a-sce2"
+    pueue add -a 6 -s "just --dry-run full-a-sce3"
+    pueue add -a 7 -s "just --dry-run full-a-sce4"
+    pueue add -a 8 -s "just --dry-run full-a-sce5"
+    pueue enqueue 0 1 2 3 4 5 6 7 8 9
+    pueue parallel 1
+    pueue start
 
 
 # Full data
-full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2: fetch_train clean-full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2
-    python train.py --wd 0.01 --alpha 0.1 --beta 10.0 --no_masked_label --ex full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2 --model_name ConvE --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 10.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
 
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2
+
+
+full-AdaE2-no_dropout-reg-SCELoss_a0_1_b5-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b5-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 5.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b5-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b5-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a0_1_b5-wd1e2
+
+
+full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 1.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2
+
+
+full-AdaE2-no_dropout-reg-SCELoss_a20_b1-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a20_b1-wd1e2
+    python train.py --wd 0.01 --alpha 20.0 --beta 1.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a20_b1-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a20_b1-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a20_b1-wd1e2
+
+
+full-AdaE2-no_dropout-reg-SCELoss_a15_b1-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a15_b1-wd1e2
+    python train.py --wd 0.01 --alpha 15.0 --beta 1.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a15_b1-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a15_b1-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a15_b1-wd1e2
+
+
+full-AdaE2-no_dropout-reg-SCELoss_a10_b1-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a10_b1-wd1e2
+    python train.py --wd 0.01 --alpha 10.0 --beta 1.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a10_b1-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a10_b1-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a10_b1-wd1e2
+
+# conve
+full-conve-no_dropout-reg-SCELoss_a0_1b20-wd1e2: clean-full-conve-no_dropout-reg-SCELoss_a0_1b20-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 20.0 --no_masked_label --ex full-conve-no_dropout-reg-SCELoss_a0_1b20-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-conve-no_dropout-reg-SCELoss_a0_1b20-wd1e2:
+    rm -rf logs/full-conve-no_dropout-reg-SCELoss_a0_1b20-wd1e2
+
+
+full-conve-no_dropout-reg-SCELoss_a0_1b6-wd1e2: clean-full-conve-no_dropout-reg-SCELoss_a0_1b6-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 6.0 --no_masked_label --ex full-conve-no_dropout-reg-SCELoss_a0_1b6-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-conve-no_dropout-reg-SCELoss_a0_1b6-wd1e2:
+    rm -rf logs/full-conve-no_dropout-reg-SCELoss_a0_1b6-wd1e2
+
+
+full-conve-no_dropout-reg-SCELoss_a0_1b15-wd1e2: clean-full-conve-no_dropout-reg-SCELoss_a0_1b15-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 15.0 --no_masked_label --ex full-conve-no_dropout-reg-SCELoss_a0_1b15-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+
+clean-full-conve-no_dropout-reg-SCELoss_a0_1b15-wd1e2:
+    rm -rf logs/full-conve-no_dropout-reg-SCELoss_a0_1b15-wd1e2
+
+
+full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2: clean-full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 10.0 --no_masked_label --ex full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
 
 clean-full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2:
     rm -rf logs/full-conve-no_dropout-reg-SCELoss_a0_1b10-wd1e2
