@@ -522,6 +522,7 @@ class GCN2(object):
             for i in range(self.order):
                 with Scope(f"layer_{i+1}", prefix=scope.prefix, reuse=reuse):
                     # nxn b n e -> b n e
+                    x_identity = x
                     x = tf.matmul(A, x)
                     x = tf.layers.dense(
                         x,
@@ -531,7 +532,7 @@ class GCN2(object):
                         kernel_initializer=tf.glorot_normal_initializer(),
                         kernel_regularizer=self.regularizer,
                         name=f"W{i+1}")
-
+                    x = tf.add(x_identity, x)
                     xs.append(x)
                     # FIXME tf.cond?
                     if i < self.order - 1:
@@ -541,6 +542,7 @@ class GCN2(object):
             with Scope("readout", prefix=scope.prefix, reuse=reuse):
                 h = tf.concat(xs, -1)
                 h = tf.layers.BatchNormalization(axis=-1)(h, training=training)
+                h = tf.relu(h)
                 h = tf.layers.dense(
                     h,
                     self.C,
