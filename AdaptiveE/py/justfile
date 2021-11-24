@@ -29,6 +29,15 @@ alias adae2 := AdaE2-nodp-reg-SCELoss_a0_1_b30-wd1e2
 alias iadae2 := AdaE2-nodp-reg-SCELoss_a0_1_b30-wd1e2-dbg
 alias adae3 := AdaE2-nodp-reg-GCELoss-wd1e2
 alias adae4 := AdaE2-nodp-reg-GCELoss-wd1e4
+alias adae5 := AdaE2-nodp-reg-GCELoss-wd1e3-resnet
+
+
+AdaE2-nodp-reg-GCELoss-wd1e3-resnet: fetch_train clean-AdaE2-nodp-reg-GCELoss-wd1e3-resnet
+    python train.py --wd 0.001 --q 0.7 --no_masked_label --ex AdaE2-nodp-reg-GCELoss-wd1e3-resnet  --suffix _dis --model_name AdaE2 --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-AdaE2-nodp-reg-GCELoss-wd1e3-resnet:
+    rm -rf logs/AdaE2-nodp-reg-GCELoss-wd1e3-resnet
 
 
 AdaE2-nodp-reg-GCELoss-wd1e4: fetch_train clean-AdaE2-nodp-reg-GCELoss-wd1e4
