@@ -41,9 +41,42 @@ alias full-a-sce3 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2
 alias full-a-sce4 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b5-wd1e2
 alias full-a-sce5 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2
 
+# b in [0.5 0.8 1.2 1.5]
+alias full-a-sce-b1 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_5-wd1e2
+alias full-a-sce-b2 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_8-wd1e2
+alias full-a-sce-b3 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_2-wd1e2
+alias full-a-sce-b4 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_5-wd1e2
+
 
 # pueue
 run:
+    #!/usr/bin/env bash
+    GROUP=small_b
+    pueue group -a $GROUP
+    TASKID0=$(pueue add -g $GROUP -p -s "just full-a-sce-b1")
+    TASKID1=$(pueue add -g $GROUP -a $TASKID0 -p -s "just full-a-sce-b2")
+    TASKID2=$(pueue add -g $GROUP -a $TASKID1 -p -s "just full-a-sce-b2")
+    TASKID3=$(pueue add -g $GROUP -a $TASKID2 -p -s "just full-a-sce-b3")
+    TASKID4=$(pueue add -g $GROUP -a $TASKID3 -p -s "just full-a-sce-b4")
+    pueue enqueue $TASKID0 $TASKID1 $TASKID2 $TASKID3 $TASKID4
+    pueue parallel -g $GROUP 1
+    pueue start -g $GROUP
+
+dry-run:
+    #!/usr/bin/env bash
+    GROUP=small_b
+    pueue group -a $GROUP
+    TASKID0=$(pueue add -g $GROUP -p -s "just --dry-run full-a-sce-b1")
+    TASKID1=$(pueue add -g $GROUP -a $TASKID0 -p -s "just --dry-run full-a-sce-b2")
+    TASKID2=$(pueue add -g $GROUP -a $TASKID1 -p -s "just --dry-run full-a-sce-b2")
+    TASKID3=$(pueue add -g $GROUP -a $TASKID2 -p -s "just --dry-run full-a-sce-b3")
+    TASKID4=$(pueue add -g $GROUP -a $TASKID3 -p -s "just --dry-run full-a-sce-b4")
+    pueue enqueue $TASKID0 $TASKID1 $TASKID2 $TASKID3 $TASKID4
+    pueue parallel -g $GROUP 1
+    pueue start -g $GROUP
+
+# --
+run-pre1:
     pueue kill
     pueue clean
     pueue add -s "just full-sce"
@@ -61,7 +94,7 @@ run:
     pueue parallel 1
     pueue start
 
-dry-run:
+dry-run-pre1:
     pueue kill
     pueue clean
     pueue add -s "just --dry-run full-sce"
@@ -81,6 +114,40 @@ dry-run:
 
 
 # Full data
+# b == 1 is the best
+full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_5-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_5-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 1.5 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_5-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 75 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_5-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_5-wd1e2
+
+
+full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_2-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_2-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 1.2 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_2-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 75 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_2-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_2-wd1e2
+
+
+full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_8-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_8-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 0.8 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_8-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 75 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_8-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_8-wd1e2
+
+
+full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_5-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_5-wd1e2
+    python train.py --wd 0.01 --alpha 0.1 --beta 0.5 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_5-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 75 -I 50 --lr 0.001 --use_pretrained
+
+
+clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_5-wd1e2:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_5-wd1e2
+
+
+# ---
 full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2
     python train.py --wd 0.01 --alpha 0.1 --beta 10.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
 
