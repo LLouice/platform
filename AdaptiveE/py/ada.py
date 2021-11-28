@@ -759,10 +759,12 @@ class ConvE(object):
             # x = tf.layers.Dropout(rate=self.hid_dp)(x, training=training)
             x_hid = tf.layers.flatten(x, name="flatten")
             # [B, E'] -> [B, E]
-            x_hid = tf.layers.BatchNormalization(axis=-1, name="bn_hid")(
-                x_hid, training=training)
+            # x_hid = tf.layers.BatchNormalization(axis=-1, name="bn_hid")(
+            #     x_hid, training=training)
             # x0 = self.fc(x_hid, training=training, name="fc_label")
             x1 = self.fc(x_hid, training=training)
+            x1 = tf.layers.BatchNormalization(axis=-1, name="bn_last")(x1, training=training)
+            x1 = tf.nn.relu(x1)
             # logit_label = self.pred(x0, name="pred_label")
             logit = self.pred(x1)
         # return (logit_label, logit), dis_pos, dis_neg
