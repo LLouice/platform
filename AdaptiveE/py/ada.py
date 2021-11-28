@@ -1398,46 +1398,24 @@ class Export(object):
                     dis_neg,
                     margin=1.0):
         with tf.name_scope('loss'):
-            loss_fn = symmetric_cross_entropy(self.alpha, self.beta, self.A)
-            print(f"use use_other_loss: {self.use_other_loss}")
-            if not self.use_other_loss:
-                # self.loss_model = tf.reduce_sum(
-                #     tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
-                #                                     logits=logits *
-                #                                     masked_labels,
-                #                                     label_smoothing=0.1),
-                #     name="loss_model")
-                # self.loss_model = tf.reduce_mean(
-                #     BootstrappedSigmoidClassificationLoss(
-                #         0.95, bootstrap_type='hard')(logits * masked_labels,
-                #                                      labels),
-                #     name="loss_model")
-                if self.use_masked_label:
-                    # self.loss_model = tf.reduce_mean(GCELoss(self.q)(
-                    #     logits * masked_labels, labels),
-                    #                                  name="loss_model")
+            print("using CELoss...")
+            if self.use_masked_label:
+                # self.loss_model = tf.reduce_mean(GCELoss(self.q)(
+                #     logits * masked_labels, labels),
+                #                                  name="loss_model")
 
-                    print("using SCELoss...")
-                    self.loss_ce, self.loss_rce = loss_fn(
-                        labels,
-                        tf.sigmoid(logits) * masked_labels)
-                    self.loss_model = tf.add(self.loss_ce,
-                                             self.loss_rce,
-                                             name="loss_model")
-
-                else:
-                    # self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits, labels),
-                    #                                 name="loss_model")
-
-                    print("using SCELoss...")
-                    self.loss_ce, self.loss_rce = loss_fn(
-                        labels,
-                        tf.sigmoid(logits))
-                    self.loss_model = tf.add(self.loss_ce,
-                                             self.loss_rce,
-                                             name="loss_model")
-
-                print(self.loss_model)
+                self.loss_model = tf.reduce_sum(
+                    tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
+                                                    logits=logits *
+                                                    masked_labels,
+                                                    label_smoothing=0.1),
+                    name="loss_model")
+            else:
+                self.loss_model = tf.reduce_sum(
+                    tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
+                                                    logits=logits,
+                                                    label_smoothing=0.1),
+                    name="loss_model")
 
                 # tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
                 #     multi_class_labels=labels,
@@ -1450,27 +1428,10 @@ class Export(object):
                 # self.loss = tf.add(self.loss_model,
                 #                    self.loss_margin,
                 # name="loss")
-                self.loss = tf.add(self.loss_model,
-                                   tf.losses.get_regularization_loss(),
-                                   name="loss_all")
-                print(self.loss)
-            else:
-                logits_label, logits = logits
-                print("using prob_loss...")
-                prob_labels = tf.sigmoid(logits_label)
-                labels = prob_labels * labels + (1 - prob_labels) * (1 -
-                                                                     labels)
-                self.loss_model = tf.reduce_mean(
-                    tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
-                                                    logits=logits),
-                    name="loss_model")
-
-                self.loss_margin = tf.reduce_mean(tf.maximum(
-                    dis_pos - dis_neg + margin, 0),
-                                                  name="loss_margin")
-                self.loss = tf.add(self.loss_model,
-                                   self.loss_margin,
-                                   name="loss")
+            self.loss = tf.add(self.loss_model,
+                               tf.losses.get_regularization_loss(),
+                               name="loss_all")
+            print(self.loss)
 
     def _build_optimizer(self):
         with tf.name_scope('optimizer'):
@@ -1485,7 +1446,8 @@ class Export(object):
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies([
                     tf.assign_add(self.global_step,
-                                  tf.constant(1, dtype=tf.int64)), *update_ops,
+                                  tf.constant(1, dtype=tf.int64)),
+                    *update_ops,
             ]):
                 self.optimize = self.optimizer.apply_gradients(
                     self.grads_and_vars, name="optimize")
@@ -1506,11 +1468,8 @@ class Export(object):
             # hloss_s = tf.summary.histogram('histogram loss', self.loss)
 
             loss_model_s = tf.summary.scalar('loss/model', self.loss_model)
-            loss_ce_s = tf.summary.scalar('loss/ce', self.loss_ce)
-            loss_rce_s = tf.summary.scalar('loss/rce', self.loss_rce)
-            self.summary_op = tf.summary.merge(
-                [loss_s, loss_model_s, loss_ce_s, loss_rce_s],
-                name="summary_op")
+            self.summary_op = tf.summary.merge([loss_s, loss_model_s],
+                                               name="summary_op")
 
             self.ph_rank_val = tf.placeholder(tf.float32, (), "rank_val")
             self.ph_hit1_val = tf.placeholder(tf.float32, (), "hit1_val")

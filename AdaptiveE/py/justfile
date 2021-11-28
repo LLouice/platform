@@ -41,6 +41,12 @@ alias sce-bn64 := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz64
 alias sce-bn32 := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32
 alias adae-bn := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400
 
+# CELoss
+alias ce := conve-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32
+alias ace := AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz400
+alias ace32 := AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz32
+
+
 
 bnfixed:
     #!/usr/bin/env bash
@@ -56,6 +62,24 @@ bnfixed:
     pueue parallel -g $GROUP 3
     pueue start -g $GROUP
 
+
+# CELoss
+AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz32: fetch_train clean-AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz32
+    python train.py --wd 0.01  --no_masked_label --ex AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz32  --suffix _dis --model_name AdaE2 --visible_device_list 1 --batch_size_trn 32 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz32:
+    rm -rf logs/AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz32
+
+
+AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz400: fetch_train clean-AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz400
+    python train.py --wd 0.01  --no_masked_label --ex AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz400  --suffix _dis --model_name AdaE2 --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz400:
+    rm -rf logs/AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz400
+
+
+conve-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32: fetch_train clean-conve-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32
+    python train.py --wd 0.01 --no_masked_label --ex conve-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 32 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-conve-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32:
+    rm -rf logs/conve-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32
 
 
 # bnfixed
