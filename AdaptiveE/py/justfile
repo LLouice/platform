@@ -41,6 +41,9 @@ alias sce-bn64 := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz64
 alias sce-bn32 := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32
 alias adae-bn := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400
 
+# ConvE fixed
+alias sce-bn-fixed := conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400
+
 
 bnfixed:
     #!/usr/bin/env bash
@@ -55,6 +58,13 @@ bnfixed:
     pueue enqueue $TASKID0 $TASKID1 $TASKID2 #$TASKID3 $TASKID4
     pueue parallel -g $GROUP 3
     pueue start -g $GROUP
+
+
+# ConvE fixed
+conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400: fetch_train clean-conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400
+    python train.py --wd 0.01 --alpha 0.1 --beta 20.0 --no_masked_label --ex conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400  --suffix _dis --model_name ConvE --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400:
+    rm -rf logs/conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400
 
 
 
