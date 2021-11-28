@@ -39,11 +39,14 @@ alias sce-bn := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400
 alias isce-bn := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400-dbg
 alias sce-bn64 := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz64
 alias sce-bn32 := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32
-alias adae-bn := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400
+alias adae-bn := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400 # good!!!!
+alias adae-bn32 := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz32
+alias adae-bn256 := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz256
+alias adae-bn128 := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz128
 
 # ConvE fixed
 alias sce-bn-fixed := conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400
-
+alias sce-bn-fixed2 := conve-no_dropout-reg-SCELoss_a1_b10-wd1e2-bnfixed-bsz400
 
 bnfixed:
     #!/usr/bin/env bash
@@ -61,6 +64,12 @@ bnfixed:
 
 
 # ConvE fixed
+conve-no_dropout-reg-SCELoss_a1_b10-wd1e2-bnfixed-bsz400: fetch_train clean-conve-no_dropout-reg-SCELoss_a1_b10-wd1e2-bnfixed-bsz400
+    python train.py --wd 0.01 --alpha 1 --beta 10.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a1_b10-wd1e2-bnfixed-bsz400  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-conve-no_dropout-reg-SCELoss_a1_b10-wd1e2-bnfixed-bsz400:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a1_b10-wd1e2-bnfixed-bsz400
+
+
 conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400: fetch_train clean-conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400
     python train.py --wd 0.01 --alpha 0.1 --beta 20.0 --no_masked_label --ex conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400  --suffix _dis --model_name ConvE --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
 clean-conve_fixed-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400:
@@ -78,6 +87,25 @@ conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32: fetch_train clean-con
     python train.py --wd 0.01 --alpha 0.1 --beta 20.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 32 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
 clean-conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32:
     rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32
+
+
+AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz128: fetch_train clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz128
+    python train.py --wd 0.01 --alpha 10.0 --beta 1.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz128  --suffix _dis --model_name AdaE2 --visible_device_list 2 --batch_size_trn 128 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz128:
+    rm -rf logs/AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz128
+
+
+AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz256: fetch_train clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz256
+    python train.py --wd 0.01 --alpha 10.0 --beta 1.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz256  --suffix _dis --model_name AdaE2 --visible_device_list 1 --batch_size_trn 256 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz256:
+    rm -rf logs/AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz256
+
+
+
+AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz32: fetch_train clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz32
+    python train.py --wd 0.01 --alpha 10.0 --beta 1.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz32  --suffix _dis --model_name AdaE2 --visible_device_list 2 --batch_size_trn 32 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz32:
+    rm -rf logs/AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz32
 
 
 AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400: fetch_train clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400
