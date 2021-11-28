@@ -1483,7 +1483,7 @@ class Export(object):
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies([
                     tf.assign_add(self.global_step,
-                                  tf.constant(1, dtype=tf.int64)), update_ops,
+                                  tf.constant(1, dtype=tf.int64)), *update_ops,
             ]):
                 self.optimize = self.optimizer.apply_gradients(
                     self.grads_and_vars, name="optimize")
@@ -1493,7 +1493,7 @@ class Export(object):
                 self.loss)
             with tf.control_dependencies([
                     tf.assign_add(self.global_step,
-                                  tf.constant(1, dtype=tf.int64)), update_ops
+                                  tf.constant(1, dtype=tf.int64)), *update_ops
             ]):
                 self.optimize_sgd = self.optimizer_sgd.apply_gradients(
                     self.grads_and_vars, name="optimize_sgd")
