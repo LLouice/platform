@@ -46,6 +46,8 @@ alias ce := conve-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32
 alias ace := AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz400
 alias ace32 := AdaE2-nodp-reg-CELoss-wd1e2-resnet_plus-bnfixed-bsz32
 
+# ConvEfixed
+alias ce-fixed := conve_fixed-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32
 
 
 bnfixed:
@@ -61,6 +63,13 @@ bnfixed:
     pueue enqueue $TASKID0 $TASKID1 $TASKID2 #$TASKID3 $TASKID4
     pueue parallel -g $GROUP 3
     pueue start -g $GROUP
+
+# ConvEfixed
+conve_fixed-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32: fetch_train clean-conve_fixed-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32
+    python train.py --wd 0.01 --no_masked_label --ex conve_fixed-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 32 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-conve_fixed-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32:
+    rm -rf logs/conve_fixed-no_dropout-reg-CELoss-wd1e2-bnfixed-bsz32
+
 
 
 # CELoss
