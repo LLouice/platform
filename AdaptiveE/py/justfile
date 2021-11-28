@@ -37,6 +37,43 @@ alias adae8 := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus
 # bnfixed
 alias sce-bn := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400
 alias isce-bn := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400-dbg
+alias sce-bn64 := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz64
+alias sce-bn32 := conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32
+alias adae-bn := AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400
+
+
+bnfixed:
+    #!/usr/bin/env bash
+    GROUP=bnfixed
+    pueue group -a $GROUP
+    TASKID0=$(pueue add -g $GROUP -p -s "just sce-bn64")
+    TASKID1=$(pueue add -g $GROUP -p -s "just sce-bn32")
+    TASKID2=$(pueue add -g $GROUP -p -s "just adae-bn")
+    # TASKID2=$(pueue add -g $GROUP -a $TASKID1 -p -s "just full-a-sce-b2")
+    # TASKID3=$(pueue add -g $GROUP -a $TASKID2 -p -s "just full-a-sce-b3")
+    # TASKID4=$(pueue add -g $GROUP -a $TASKID3 -p -s "just full-a-sce-b4")
+    pueue enqueue $TASKID0 $TASKID1 $TASKID2 #$TASKID3 $TASKID4
+    pueue parallel -g $GROUP 3
+    pueue start -g $GROUP
+
+
+
+# bnfixed
+conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz64: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz64
+    python train.py --wd 0.01 --alpha 0.1 --beta 20.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz64  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 64 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz64:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz64
+
+conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32
+    python train.py --wd 0.01 --alpha 0.1 --beta 20.0 --no_masked_label --ex conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32  --suffix _dis --model_name ConvE --visible_device_list 1 --batch_size_trn 32 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32:
+    rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz32
+
+
+AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400: fetch_train clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400
+    python train.py --wd 0.01 --alpha 10.0 --beta 1.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400  --suffix _dis --model_name AdaE2 --visible_device_list 2 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
+clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400:
+    rm -rf logs/AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus-bnfixed-bsz400
 
 
 conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400-dbg: fetch_train clean-conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400-dbg
@@ -51,6 +88,7 @@ clean-conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400:
     rm -rf logs/conve-no_dropout-reg-SCELoss_a0_1_b20-wd1e2-bnfixed-bsz400
 
 
+# bn bug
 AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus: fetch_train clean-AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus
     python train.py --wd 0.01 --alpha 10.0 --beta 1.0 --no_masked_label --ex AdaE2-nodp-reg-SCELoss_a10_b1-wd1e2-resnet_plus  --suffix _dis --model_name AdaE2 --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 200 -I 50 --lr 0.001 --use_pretrained
 
