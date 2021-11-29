@@ -50,6 +50,18 @@ alias full-a-sce-b4 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_5-wd1e2
 alias full-asce-bnfixed-bsz := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2-bnfixed-bsz
 # bnfixed
 
+stable: (full-AdaE2-no_dropout-reg-SCELoss_stable_a0_1_b1-wd1e2-bnfixed-bsz "400")
+
+
+
+full-AdaE2-no_dropout-reg-SCELoss_stable_a0_1_b1-wd1e2-bnfixed-bsz batch_size_trn: (clean-full-AdaE2-no_dropout-reg-SCELoss_stable_a0_1_b1-wd1e2-bnfixed-bsz batch_size_trn)
+    python train.py --wd 0.01 --alpha 0.1 --beta 1.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_stable_a0_1_b1-wd1e2-bnfixed-bsz{{batch_size_trn}} --model_name AdaE2 --visible_device_list 3 --batch_size_trn {{batch_size_trn}} --batch_size_dev 4000 -e 125 -I 50 --lr 0.001 --use_pretrained
+clean-full-AdaE2-no_dropout-reg-SCELoss_stable_a0_1_b1-wd1e2-bnfixed-bsz batch_size_trn:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_stable_a0_1_b1-wd1e2-bnfixed-bsz{{batch_size_trn}}
+
+
+
+# FIXME: wrong model_name!!!
 run-full-asce-bnfixed-bsz:
     #!/usr/bin/env bash
     GROUP=full-asce-bnfixed-bsz
@@ -190,6 +202,7 @@ clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_5-wd1e2:
 
 
 # ---
+# all wrong model_name!!!
 full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2: clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2
     python train.py --wd 0.01 --alpha 0.1 --beta 10.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b10-wd1e2 --model_name ConvE --visible_device_list 3 --batch_size_trn 400 --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
 
