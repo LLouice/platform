@@ -564,6 +564,285 @@ class GCN2(object):
         return h
 
 
+class AdaE3(object):
+    def __init__(
+        self,
+        NE,
+        NR,
+        E,
+        C=32,
+        v_dim=10,
+        inp_dp=0.2,
+        hid_dp=0.2,
+        last_dp=0.3,
+        order=2,
+        wd=0.0003,
+        prefix="",
+        reuse=None,
+    ):
+        super().__init__()
+        self.NE = NE
+        self.NR = NR
+        self.E = E
+        self.C = C
+        self.v_dim = v_dim
+        self.inp_dp = inp_dp
+        self.hid_dp = hid_dp
+        self.last_dp = last_dp
+        self.order = order
+        self.wd = wd
+        self.prefix = prefix
+        self.reuse = reuse
+
+        self.path = f"{prefix}AdaE3/"
+
+        self.regularizer = tf.contrib.layers.l2_regularizer(scale=wd)
+
+    def embedding_lookup(self, e1, rel, pretrained_embeddings=None):
+        # [NE, E] - lookup -> [bs, E] -> [bs, E, 1]
+        with Scope("embedding_lookup", prefix=self.path, reuse=self.reuse):
+            self.emb_e = tf.get_variable(
+                'emb_e',
+                shape=[self.NE, self.E],
+                initializer=tf.glorot_normal_initializer(),
+                regularizer=self.regularizer,
+            )
+
+            self.emb_rel = tf.get_variable(
+                'emb_r',
+                shape=[self.NR, self.E],
+                initializer=tf.glorot_normal_initializer(),
+                regularizer=self.regularizer,
+            )
+
+            if pretrained_embeddings is not None:
+                e_emb_extra = tf.nn.embedding_lookup(
+                    pretrained_embeddings, e1, name="e1_pretrained_embedding")
+                e1_emb = tf.reshape(
+                    tf.add(
+                        e_emb_extra,
+                        tf.nn.embedding_lookup(self.emb_e,
+                                               e1,
+                                               name="e1_embedding")),
+                    [-1, self.E, 1])
+            else:
+                e1_emb = tf.reshape(
+                    tf.nn.embedding_lookup(self.emb_e, e1,
+                                           name="e1_embedding"),
+                    [-1, self.E, 1])
+
+            rel_emb = tf.reshape(
+                tf.nn.embedding_lookup(self.emb_rel, rel,
+                                       name="rel_embedding"), [-1, self.E, 1])
+        return e1_emb, rel_emb
+
+    def transe(self, triple, neg_triple):
+        with Scope("transe", prefix=self.path, reuse=self.reuse):
+            pos_h_e = triple[0]
+            pos_r_e = triple[1]
+            pos_t_e = triple[2]
+            neg_h_e = neg_triple[0]
+            neg_r_e = neg_triple[1]
+            neg_t_e = neg_triple[2]
+
+            pos_h_e = tf.nn.embedding_lookup(self.emb_e,
+                                             pos_h_e,
+                                             name="pos_h_e")
+            pos_r_e = tf.nn.embedding_lookup(self.emb_rel,
+                                             pos_r_e,
+                                             name="pos_rel_e")
+            pos_t_e = tf.nn.embedding_lookup(self.emb_e,
+                                             pos_t_e,
+                                             name="pos_t_e")
+            neg_h_e = tf.nn.embedding_lookup(self.emb_e,
+                                             neg_h_e,
+                                             name="neg_h_e")
+            neg_r_e = tf.nn.embedding_lookup(self.emb_rel,
+                                             neg_r_e,
+                                             name="neg_rel_e")
+            neg_t_e = tf.nn.embedding_lookup(self.emb_e,
+                                             neg_t_e,
+                                             name="neg_t_e")
+            # l2 normalization
+            pos_h_e = tf.nn.l2_normalize(pos_h_e, axis=1)
+            pos_r_e = tf.nn.l2_normalize(pos_r_e, axis=1)
+            pos_t_e = tf.nn.l2_normalize(pos_t_e, axis=1)
+            neg_h_e = tf.nn.l2_normalize(neg_h_e, axis=1)
+            neg_r_e = tf.nn.l2_normalize(neg_r_e, axis=1)
+            neg_t_e = tf.nn.l2_normalize(neg_t_e, axis=1)
+
+            dis_pos = tf.norm(pos_h_e + pos_r_e - pos_t_e, 2, keep_dims=True)
+            dis_neg = tf.norm(neg_h_e + neg_r_e - neg_t_e, 2, keep_dims=True)
+            return dis_pos, dis_neg
+
+    def make_ada_adj(self):
+        with Scope("ada_vector", prefix=self.path, reuse=self.reuse) as scope:
+            self.v1 = tf.get_variable(
+                'v1',
+                shape=[2 * self.E, self.v_dim],
+                initializer=tf.glorot_normal_initializer(),
+                regularizer=self.regularizer,
+            )
+
+            self.v2 = tf.get_variable(
+                'v2',
+                shape=[self.v_dim, 2 * self.E],
+                initializer=tf.glorot_normal_initializer(),
+                regularizer=self.regularizer,
+            )
+
+            A = tf.nn.softmax(tf.nn.relu(tf.matmul(self.v1, self.v2)),
+                              axis=1,
+                              name="ada_adj")
+        return A
+
+    def e1_rel_gcn(self, x, A, training):
+        self.gcn = GCN3(self.order, self.C, self.wd, prefix=self.path)
+        x = self.gcn(x, A, training, self.reuse)
+        return x
+
+    def bn_hid(self, x, training):
+        with Scope("bn_hid", prefix=self.path, reuse=self.reuse):
+            self.bn_hid = tf.layers.BatchNormalization(axis=-1)
+            x = self.bn_hid(x, training=training)
+        return x
+
+    def fc(self, x):
+        # 2*E*C -> E
+        return tf.layers.dense(
+            x,
+            self.E,
+            activation=None,
+            use_bias=True,
+            kernel_initializer=tf.glorot_normal_initializer(),
+            bias_initializer=tf.zeros_initializer(),
+            name="fc")
+
+    def bn_last(self, x, training):
+        with Scope("bn_last", prefix=self.path, reuse=self.reuse):
+            self.bn_last = tf.layers.BatchNormalization(axis=-1)
+            x = self.bn_last(x, training=training)
+        return x
+
+    def __call__(self,
+                 e1,
+                 rel,
+                 training=False,
+                 pretrained_embeddings=None,
+                 triple=None,
+                 neg_triple=None):
+        with Scope("AdaE3", prefix=self.prefix, reuse=self.reuse) as scope:
+
+            e1_emb, rel_emb = self.embedding_lookup(e1, rel,
+                                                    pretrained_embeddings)
+
+            if triple is not None:
+                dis_pos, dis_neg = self.transe(triple, neg_triple)
+            else:
+                dis_pos = 0
+                dis_neg = 1.
+
+            A = self.make_ada_adj()
+            x = tf.concat([e1_emb, rel_emb], 1)  #[None, 1024, 1]
+            x = self.e1_rel_gcn(x, A, training)
+            x = tf.layers.flatten(x, name="flatten")  # b, 2E, C -> b,2E*C
+            x = self.bn_hid(x, training)
+            x = tf.nn.relu(x)
+            x = self.fc(x)
+            x = self.bn_last(x, training)
+            x = tf.nn.relu(x)
+            # bs E  E, N -> bs, N
+            with Scope("pred", prefix=scope.prefix,
+                       reuse=self.reuse) as scope_pred:
+                x = tf.matmul(x, self.emb_e, transpose_b=True, name="mul_E")
+                self.b = tf.get_variable(
+                    'bias',
+                    shape=[self.NE],
+                    initializer=tf.zeros_initializer(),
+                    regularizer=self.regularizer,
+                )
+                x = tf.add(x, self.b, name="logits")
+        return x, dis_pos, dis_neg
+
+
+class GCN3(object):
+    def __init__(
+        self,
+        order=2,
+        C=32,
+        wd=0.0003,
+        prefix="",
+    ):
+        super().__init__()
+        self.order = order
+        self.C = C
+        self.prefix = prefix
+
+        self.regularizer = tf.contrib.layers.l2_regularizer(scale=wd)
+
+    def __call__(
+        self,
+        x,
+        A,
+        training,
+        reuse=None,
+    ):
+        '''
+        A: n x n
+        '''
+        with Scope("GCN", prefix=self.prefix, reuse=reuse) as scope:
+            # E = tf.shape(x_e)[1]
+            xs = []
+
+            x_identity_0 = x
+
+            for i in range(self.order):
+                with Scope(f"layer_{i+1}", prefix=scope.prefix, reuse=reuse):
+                    # nxn b n e -> b n e
+                    x_identity = x
+
+                    if i < self.order - 1:
+                        x = tf.layers.BatchNormalization(axis=-1)(
+                            x, training=training)
+                        if x != 0:
+                            x = tf.nn.relu(x)
+
+                    x = tf.matmul(A, x)
+                    x = tf.layers.dense(
+                        x,
+                        self.C,
+                        activation=None,
+                        use_bias=False,
+                        kernel_initializer=tf.glorot_normal_initializer(),
+                        kernel_regularizer=self.regularizer,
+                        name=f"W{i+1}")
+                    x = tf.add(x_identity, x)
+                    xs.append(x)
+
+            with Scope("readout", prefix=scope.prefix, reuse=reuse):
+                h = tf.concat(xs, -1)  #[None, 1024, 32 * 2]
+                h = tf.layers.BatchNormalization(axis=-1)(h, training=training)
+                h = tf.relu(h)
+                h = tf.layers.dense(
+                    h,
+                    self.C,
+                    name="fc_readout",
+                    activation=None,
+                    use_bias=True,
+                    kernel_initializer=tf.glorot_normal_initializer(),
+                    bias_initializer=tf.zeros_initializer(),
+                    kernel_regularizer=self.regularizer,
+                )
+                h = h + tf.layers.dense(
+                    x_identity_0,
+                    self.C,
+                    activation=None,
+                    use_bias=False,
+                    kernel_initializer=tf.glorot_normal_initializer(),
+                    kernel_regularizer=self.regularizer)
+        return h
+
+
 class ConvE(object):
     def __init__(
         self,
@@ -1344,6 +1623,15 @@ class Export(object):
                                   v_dim=self.v_dim,
                                   wd=self.wd,
                                   prefix=scope.prefix)
+                elif self.model_name == "AdaE3":
+                    print("model is AdaE3")
+                    model = AdaE3(self.NE,
+                                  self.NR,
+                                  self.E,
+                                  self.C,
+                                  v_dim=self.v_dim,
+                                  wd=self.wd,
+                                  prefix=scope.prefix)
                 else:
                     print("model is ConvE")
                     model = ConvE(self.NE,
@@ -1371,6 +1659,15 @@ class Export(object):
                 elif self.model_name == "AdaE2":
                     print("model is AdaE2")
                     model = AdaE2(self.NE,
+                                  self.NR,
+                                  self.E,
+                                  self.C,
+                                  v_dim=self.v_dim,
+                                  wd=self.wd,
+                                  prefix=scope.prefix)
+                elif self.model_name == "AdaE3":
+                    print("model is AdaE3")
+                    model = AdaE3(self.NE,
                                   self.NR,
                                   self.E,
                                   self.C,
@@ -1695,7 +1992,7 @@ def build_graph(E: int = 512,
                 beta=1.0,
                 A=1e-4) -> None:
     print(f"build_graph:: model: {model_name} use_transe: {use_transe2}")
-    if model_name == "AdaE" or model_name == "AdaE2":
+    if model_name == "AdaE" or model_name == "AdaE2" or model_name == "AdaE3":
         export = Export(
             NE,
             NR,
