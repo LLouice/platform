@@ -47,9 +47,51 @@ alias full-a-sce-b2 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b0_8-wd1e2
 alias full-a-sce-b3 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_2-wd1e2
 alias full-a-sce-b4 := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1_5-wd1e2
 
+alias full-asce-bnfixed-bsz := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2-bnfixed-bsz
+# bnfixed
+
+run-full-asce-bnfixed-bsz:
+    #!/usr/bin/env bash
+    GROUP=full-asce-bnfixed-bsz
+    pueue group -a $GROUP
+    TASKID0=$(pueue add -g $GROUP -p -s "just $GROUP 400")
+    TASKID1=$(pueue add -g $GROUP -a $TASKID0 -p -s "just $GROUP 400")
+    TASKID2=$(pueue add -g $GROUP -a $TASKID1 -p -s "just $GROUP 256")
+    TASKID3=$(pueue add -g $GROUP -a $TASKID2 -p -s "just $GROUP 128")
+    TASKID4=$(pueue add -g $GROUP -a $TASKID3 -p -s "just $GROUP 64")
+    TASKID5=$(pueue add -g $GROUP -a $TASKID3 -p -s "just $GROUP 32")
+    pueue enqueue $TASKID0 $TASKID1 $TASKID2 $TASKID3 $TASKID4 $TASKID5
+    pueue parallel -g $GROUP 1
+    pueue start -g $GROUP
+
+
+dry-run-full-asce-bnfixed-bsz:
+    #!/usr/bin/env bash
+    GROUP=full-asce-bnfixed-bsz
+    pueue group -a $GROUP
+    TASKID0=$(pueue add -g $GROUP -p -s "just --dry-run $GROUP 400")
+    TASKID1=$(pueue add -g $GROUP -a $TASKID0 -p -s "just --dry-run $GROUP 400")
+    TASKID2=$(pueue add -g $GROUP -a $TASKID1 -p -s "just --dry-run $GROUP 256")
+    TASKID3=$(pueue add -g $GROUP -a $TASKID2 -p -s "just --dry-run $GROUP 128")
+    TASKID4=$(pueue add -g $GROUP -a $TASKID3 -p -s "just --dry-run $GROUP 64")
+    TASKID5=$(pueue add -g $GROUP -a $TASKID3 -p -s "just --dry-run $GROUP 32")
+    pueue enqueue $TASKID0 $TASKID1 $TASKID2 $TASKID3 $TASKID4 $TASKID5
+    pueue parallel -g $GROUP 1
+    pueue start -g $GROUP
+
+
+
+
+full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2-bnfixed-bsz batch_size_trn: (clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2-bnfixed-bsz batch_size_trn)
+    python train.py --wd 0.01 --alpha 0.1 --beta 1.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2-bnfixed-bsz{{batch_size_trn}} --model_name ConvE --visible_device_list 3 --batch_size_trn {{batch_size_trn}} --batch_size_dev 4000 -e 300 -I 50 --lr 0.001 --use_pretrained
+clean-full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2-bnfixed-bsz batch_size_trn:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2-bnfixed-bsz{{batch_size_trn}}
+
+
+
 
 # pueue
-run:
+run-full-a-sce-b:
     #!/usr/bin/env bash
     GROUP=small_b
     pueue group -a $GROUP
@@ -62,7 +104,7 @@ run:
     pueue parallel -g $GROUP 1
     pueue start -g $GROUP
 
-dry-run:
+dry-run-full-a-sce-b:
     #!/usr/bin/env bash
     GROUP=small_b
     pueue group -a $GROUP
