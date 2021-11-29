@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from const import NE, NR, TEST_SIZE, TRAIN_SIZE, VAL_SIZE
 from losses import (BootstrappedSigmoidClassificationLoss, GCELoss,
-                    symmetric_cross_entropy)
+                    symmetric_cross_entropy, symmetric_cross_entropy_stable)
 from utils import Scope, scatter_update_tensor, set_gpu, write_graph
 
 # build create static ops
@@ -763,7 +763,8 @@ class ConvE(object):
             #     x_hid, training=training)
             # x0 = self.fc(x_hid, training=training, name="fc_label")
             x1 = self.fc(x_hid, training=training)
-            x1 = tf.layers.BatchNormalization(axis=-1, name="bn_last")(x1, training=training)
+            x1 = tf.layers.BatchNormalization(axis=-1, name="bn_last")(
+                x1, training=training)
             x1 = tf.nn.relu(x1)
             # logit_label = self.pred(x0, name="pred_label")
             logit = self.pred(x1)
@@ -1398,7 +1399,8 @@ class Export(object):
                     dis_neg,
                     margin=1.0):
         with tf.name_scope('loss'):
-            loss_fn = symmetric_cross_entropy(self.alpha, self.beta, self.A)
+            loss_fn = symmetric_cross_entropy_stable(self.alpha, self.beta,
+                                                     self.A)
             print(f"use use_other_loss: {self.use_other_loss}")
             if not self.use_other_loss:
                 # self.loss_model = tf.reduce_sum(
@@ -1417,10 +1419,9 @@ class Export(object):
                     #     logits * masked_labels, labels),
                     #                                  name="loss_model")
 
-                    print("using SCELoss...")
+                    print("using SCELoss-stable...")
                     self.loss_ce, self.loss_rce = loss_fn(
-                        labels,
-                        tf.sigmoid(logits) * masked_labels)
+                        labels, logits * masked_labels)
                     self.loss_model = tf.add(self.loss_ce,
                                              self.loss_rce,
                                              name="loss_model")
@@ -1429,10 +1430,8 @@ class Export(object):
                     # self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits, labels),
                     #                                 name="loss_model")
 
-                    print("using SCELoss...")
-                    self.loss_ce, self.loss_rce = loss_fn(
-                        labels,
-                        tf.sigmoid(logits))
+                    print("using SCELoss-stable...")
+                    self.loss_ce, self.loss_rce = loss_fn(labels, logits)
                     self.loss_model = tf.add(self.loss_ce,
                                              self.loss_rce,
                                              name="loss_model")
@@ -1485,7 +1484,8 @@ class Export(object):
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies([
                     tf.assign_add(self.global_step,
-                                  tf.constant(1, dtype=tf.int64)), *update_ops,
+                                  tf.constant(1, dtype=tf.int64)),
+                    *update_ops,
             ]):
                 self.optimize = self.optimizer.apply_gradients(
                     self.grads_and_vars, name="optimize")
