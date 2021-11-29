@@ -1399,8 +1399,7 @@ class Export(object):
                     dis_neg,
                     margin=1.0):
         with tf.name_scope('loss'):
-            loss_fn = symmetric_cross_entropy_stable(self.alpha, self.beta,
-                                                     self.A)
+            loss_fn = symmetric_cross_entropy(self.alpha, self.beta, self.A)
             print(f"use use_other_loss: {self.use_other_loss}")
             if not self.use_other_loss:
                 # self.loss_model = tf.reduce_sum(
@@ -1419,9 +1418,10 @@ class Export(object):
                     #     logits * masked_labels, labels),
                     #                                  name="loss_model")
 
-                    print("using SCELoss-stable...")
+                    print("using SCELoss...")
                     self.loss_ce, self.loss_rce = loss_fn(
-                        labels, logits * masked_labels)
+                        labels,
+                        tf.sigmoid(logits) * masked_labels)
                     self.loss_model = tf.add(self.loss_ce,
                                              self.loss_rce,
                                              name="loss_model")
@@ -1430,8 +1430,9 @@ class Export(object):
                     # self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits, labels),
                     #                                 name="loss_model")
 
-                    print("using SCELoss-stable...")
-                    self.loss_ce, self.loss_rce = loss_fn(labels, logits)
+                    print("using SCELoss...")
+                    self.loss_ce, self.loss_rce = loss_fn(
+                        labels, tf.sigmoid(logits))
                     self.loss_model = tf.add(self.loss_ce,
                                              self.loss_rce,
                                              name="loss_model")
