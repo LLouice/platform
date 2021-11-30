@@ -51,7 +51,44 @@ alias full-asce-bnfixed-bsz := full-AdaE2-no_dropout-reg-SCELoss_a0_1_b1-wd1e2-b
 # bnfixed
 
 stable: (full-AdaE2-no_dropout-reg-SCELoss_stable_a0_1_b1-wd1e2-bnfixed-bsz "400")
+alias stable2 := full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz
+alias stable3 := full-AdaE3-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz
 
+run-stable:
+    #!/usr/bin/env bash
+    GROUP=stable
+    pueue group -a $GROUP
+    TASKID0=$(pueue add -g $GROUP -p -s "just stable2 400")
+    TASKID1=$(pueue add -g $GROUP -a $TASKID0 -p -s "just stable2 256")
+    TASKID2=$(pueue add -g $GROUP -a $TASKID1 -p -s "just stable3 400")
+    TASKID3=$(pueue add -g $GROUP -a $TASKID2 -p -s "just stable3 256")
+    pueue enqueue $TASKID0 $TASKID1 $TASKID2 $TASKID3
+    pueue parallel -g $GROUP 1
+    pueue start -g $GROUP
+
+dry-run-stable:
+    #!/usr/bin/env bash
+    GROUP=stable
+    pueue group -a $GROUP
+    TASKID0=$(pueue add -g $GROUP -p -s "just --dry-run stable2 400")
+    TASKID1=$(pueue add -g $GROUP -a $TASKID0 -p -s "just --dry-run stable2 256")
+    TASKID2=$(pueue add -g $GROUP -a $TASKID1 -p -s "just --dry-run stable3 400")
+    TASKID3=$(pueue add -g $GROUP -a $TASKID2 -p -s "just --dry-run stable3 256")
+    pueue enqueue $TASKID0 $TASKID1 $TASKID2 $TASKID3
+    pueue parallel -g $GROUP 1
+    pueue start -g $GROUP
+
+
+full-AdaE3-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz batch_size_trn: (clean-full-AdaE3-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz batch_size_trn)
+    python train.py --wd 0.01 --alpha 10.0 --beta 1.0 --no_masked_label --ex full-AdaE3-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz{{batch_size_trn}} --model_name AdaE3 --visible_device_list 3 --batch_size_trn {{batch_size_trn}} --batch_size_dev 4000 -e 125 -I 50 --lr 0.001 --use_pretrained
+clean-full-AdaE3-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz batch_size_trn:
+    rm -rf logs/full-AdaE3-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz{{batch_size_trn}}
+
+
+full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz batch_size_trn: (clean-full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz batch_size_trn)
+    python train.py --wd 0.01 --alpha 10.0 --beta 1.0 --no_masked_label --ex full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz{{batch_size_trn}} --model_name AdaE2 --visible_device_list 3 --batch_size_trn {{batch_size_trn}} --batch_size_dev 4000 -e 125 -I 50 --lr 0.001 --use_pretrained
+clean-full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz batch_size_trn:
+    rm -rf logs/full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz{{batch_size_trn}}
 
 
 full-AdaE2-no_dropout-reg-SCELoss_stable_a0_1_b1-wd1e2-bnfixed-bsz batch_size_trn: (clean-full-AdaE2-no_dropout-reg-SCELoss_stable_a0_1_b1-wd1e2-bnfixed-bsz batch_size_trn)
