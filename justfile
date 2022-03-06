@@ -4,6 +4,7 @@ NEO4J_DIR := DIR + "/neo4j/data"
 
 
 
+# project initialization
 init: init_neo4j redis
 
 
@@ -22,7 +23,24 @@ init_neo4j: start_docker
 start_docker:
     sudo systemctl start docker
 
+# end project initialization
 
+
+# front
+front:
+    trunck serve
+
+# end front
+
+
+# backend(server)
+server:
+    cargo run -p platform
+
+
+
+
+# ----------------------------------------------------------------
 dbg:
     echo {{DIR}}
     echo {{NEO4J_DIR}}
