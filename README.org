@@ -100,6 +100,7 @@
   - [[#pkgseg-pythoh][pkgseg-pythoh]]
   - [[#missing][Missing]]
 - [[#train-data-and-label][Train data and label]]
+- [[#usage][Usage]]
 
 * Project
 ** libtorch
@@ -1135,3 +1136,8 @@ val: (h,r): (t4) also need (t1,t2,t3) for masked the prediction
 test: (h,r): (t5) also need (t1,t2,t3) for masked the prediction
 
 record <= hr_map_trn; hr_map_val; hr_map_test <- hr_map
+* Usage
+#+begin_src sh
+  cd server && mk r
+  cd frontend && mk fr
+#+end_src
