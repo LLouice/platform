@@ -1,7 +1,7 @@
 # full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz256 experiment justfile:88
 # rank_5198.26474609375_loss_10.498673604516423_epoch_100_step_17000.data-00000-of-00001
 
-LOCAL_IP := "10.38.10.136"
+LOCAL_IP := "10.38.27.226"
 LOCAL_DIR := "/run/media/llouice/LLouice/dev/Rust/my/doing/Do/platform/AdaptiveE/py"
 batch_size_trn := "256"
 
@@ -28,6 +28,7 @@ ex:
 # file transfer
 fetch:
     scp -r llouice@{{LOCAL_IP}}:{{LOCAL_DIR}}/ada.py ada.py
+    scp -r llouice@{{LOCAL_IP}}:{{LOCAL_DIR}}/ada_predict.py ada_predict.py
     scp -r llouice@{{LOCAL_IP}}:{{LOCAL_DIR}}/save_model.py save_model.py
     scp -r llouice@{{LOCAL_IP}}:{{LOCAL_DIR}}/save.justfile save.justfile
 
@@ -36,6 +37,7 @@ fetch:
 
 push-save:
     just -f save.justfile push ada.py
+    just -f save.justfile push ada_predict.py
     just -f save.justfile push save_model.py
     just -f save.justfile push save.justfile
 

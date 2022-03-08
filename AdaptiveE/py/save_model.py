@@ -4,8 +4,8 @@ SaveModel
 
 from __future__ import annotations
 
-import os
 import argparse
+import os
 from dataclasses import dataclass
 # import tensorflow as tf
 from enum import Enum
@@ -17,14 +17,13 @@ from result import Err, Ok, Result
 from tensorflow.python import debug as tf_debug
 
 import logger
-from ada import build_graph
+from ada_predict import build_graph
 # from utils import set_gpu
 from config import build_config_proto
 from const import TEST_SIZE, TRAIN_SIZE, VAL_SIZE
 from logger import get_logger
 
 logger = get_logger("train")
-
 
 
 @dataclass
@@ -306,135 +305,32 @@ def run(train_config: TrainConfig) -> Result[None, str]:
     session = tf.Session()
     graph = session.graph
 
-
     # ops
     op_init = graph.get_operation_by_name("init")
 
-    ph_batch_size_trn = graph.get_tensor_by_name("custom/batch_size_trn:0")
-    ph_batch_size_dev = graph.get_tensor_by_name("custom/batch_size_dev:0")
-    ph_repeat = graph.get_tensor_by_name("custom/repeat:0")
-    ph_lr = graph.get_tensor_by_name("custom/lr:0")
+    # ph_pretrained_embeddings = graph.get_tensor_by_name(
+    #     "custom/pretrained_embeddings:0")
+    # ph_use_transe = graph.get_tensor_by_name("custom/use_transe:0")
 
-    ph_train_size = graph.get_tensor_by_name("custom/train_size:0")
-    ph_val_size = graph.get_tensor_by_name("custom/val_size:0")
-    ph_test_size = graph.get_tensor_by_name("custom/test_size:0")
-
-    ph_pretrained_embeddings = graph.get_tensor_by_name(
-        "custom/pretrained_embeddings:0")
-    ph_use_transe = graph.get_tensor_by_name("custom/use_transe:0")
-    # dataset
-    op_batch_data_trn_init = graph.get_operation_by_name(
-        "data_trn/dataset_trn/MakeIterator")
-
-    op_batch_data_trn = graph.get_operation_by_name(
-        "data_trn/dataset_trn/get_next")
-
-    # op_batch_data_trn_print = graph.get_operation_by_name(
-    #     "print_data_trn/print")
-    # op_batch_data_val_print = graph.get_operation_by_name(
-    #     "print_data_val/print")
-    # op_batch_data_test_print = graph.get_operation_by_name(
-    #     "print_data_test/print")
-
-    ph_trn_record_path = graph.get_tensor_by_name(
-        "data_trn/dataset_trn/Const:0")
-    # based on current dir
-    # trn_record_path = f"assets/symptom{suffix}_trn.tfrecord"
-    trn_record_path = f"assets/symptom{suffix}_masked-label_trn.tfrecord"
-
-    op_batch_data_val_init = graph.get_operation_by_name(
-        "data_val/dataset_val/MakeIterator")
-    _op_batch_data_val = graph.get_operation_by_name(
-        "data_val/dataset_val/get_next")
-    ph_val_record_path = graph.get_tensor_by_name(
-        "data_val/dataset_val/Const:0")
-    # based on current dir
-    val_record_path = f"assets/symptom{suffix}_val.tfrecord"
-
-    op_batch_data_test_init = graph.get_operation_by_name(
-        "data_test/dataset_test/MakeIterator")
-    _op_batch_data_test = graph.get_operation_by_name(
-        "data_test/dataset_test/get_next")
-    ph_test_record_path = graph.get_tensor_by_name(
-        "data_test/dataset_test/Const:0")
-    # based on current dir
-    test_record_path = f"assets/symptom{suffix}_test.tfrecord"
-
-    # train op
-    op_optimize = graph.get_operation_by_name("optimizer/optimize")
-    if opt == "Sgd":
-        op_optimize = graph.get_operation_by_name("optimizer/optimize_sgd")
-    elif opt != "Adam":
-        raise Exception(f"the Optimizer {opt} is not support!")
-    else:
-        pass
-
-    op_global_step = graph.get_operation_by_name("optimizer/global_step")
-    t_loss = graph.get_tensor_by_name("loss/loss_all:0")
-    t_loss_model = graph.get_tensor_by_name("loss/loss_model:0")
-    # t_loss_margin = graph.get_tensor_by_name("loss/loss_margin:0")
-    t_loss_ce = graph.get_tensor_by_name("loss/loss_ce:0")
-    t_loss_rce = graph.get_tensor_by_name("loss/loss_rce:0")
-
-    # eval op
-    op_rank_val = graph.get_operation_by_name("eval_val/rank_val")
-    op_hit1_val = graph.get_operation_by_name("eval_val/hits1_val")
-    op_hit3_val = graph.get_operation_by_name("eval_val/hits3_val")
-    op_hit10_val = graph.get_operation_by_name("eval_val/hits10_val")
-    op_eval_val = graph.get_operation_by_name("eval_val/eval_op_val")
-
-    op_rank_test = graph.get_operation_by_name("eval_test/rank_test")
-    op_hit1_test = graph.get_operation_by_name("eval_test/hits1_test")
-    op_hit3_test = graph.get_operation_by_name("eval_test/hits3_test")
-    op_hit10_test = graph.get_operation_by_name("eval_test/hits10_test")
-    op_eval_test = graph.get_operation_by_name("eval_test/eval_op_test")
+    # saver = tf.train.Saver(tf.global_variables())
+    # saver = tf.train.Saver()
 
     # save op
     ph_file_path = graph.get_tensor_by_name("save/Const:0")
     op_save = graph.get_operation_by_name("save/control_dependency")
     _file_path_tensor = "checkpoints/saved.ckpt"
 
-    # summary
-    op_summary = graph.get_operation_by_name("summaries/summary_op/summary_op")
-    op_val_summary = graph.get_operation_by_name(
-        "summaries/summary_val_op/summary_val_op")
-    op_grads_summary = graph.get_operation_by_name(
-        "gradients/summary_grads_op/summary_grads_op")
-    op_weights_summary = graph.get_operation_by_name(
-        "weights/summary_weights_op/summary_weights_op")
-
-    ph_rank_val = graph.get_tensor_by_name("summaries/rank_val:0")
-    ph_hit1_val = graph.get_tensor_by_name("summaries/hit1_val:0")
-    ph_hit3_val = graph.get_tensor_by_name("summaries/hit3_val:0")
-    ph_hit10_val = graph.get_tensor_by_name("summaries/hit10_val:0")
-
-    # feed config data
-    feed_dict = {
-        ph_batch_size_trn: np.int64(batch_size_trn),
-        ph_batch_size_dev: np.int64(batch_size_dev),
-        ph_repeat: np.int64(repeat_num),
-        ph_lr: lr,
-        ph_train_size: np.int64(train_size),
-        ph_val_size: np.int64(val_size),
-        ph_test_size: np.int64(test_size),
-        ph_trn_record_path: trn_record_path,
-        ph_val_record_path: val_record_path,
-        ph_test_record_path: test_record_path,
-        # ph_pretrained_embeddings: load_pretrained_embeddings(),
-    }
-    if use_transe:
-        feed_dict[ph_use_transe] = True
-    if use_pretrained:
-        feed_dict[ph_pretrained_embeddings] = load_pretrained_embeddings(
-            suffix)
+    # if use_transe:
+    #     feed_dict[ph_use_transe] = True
+    # if use_pretrained:
+    #     feed_dict[ph_pretrained_embeddings] = load_pretrained_embeddings(
+    #         suffix)
 
     # init step
     def init():
-        session.run([
-            op_init, op_batch_data_trn_init, op_batch_data_val_init,
-            op_batch_data_test_init
-        ],
-                    feed_dict=feed_dict)
+        session.run([op_init], )
+
+    # init()
 
     def data():
         init()
@@ -459,18 +355,42 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         session.run(op_save, feed_dict={ph_file_path: ckpt_path})
 
     def restore(ckpt):
-        init()
+        # init()
         ckpt_path = f"{ckpt_dir}/{ex}/{ckpt}"
-        op_load = graph.get_operation_by_name("save/restore_all")
+        op_load = graph.get_operation_by_name(("save/restore_all"))
         session.run(op_load, feed_dict={ph_file_path: ckpt_path})
 
-
     def start(session, ckpt: Ckpt):
-        init()
+        # init()
         if ckpt:
             logger.info(f"restore form ckpt {ckpt}")
             restore(ckpt)
             logger.info("restore done!")
+
+        # prediction
+        ph_e1 = graph.get_tensor_by_name("input/e1:0")
+        ph_rel = graph.get_tensor_by_name("input/rel:0")
+        prediction = graph.get_tensor_by_name("prediction:0")
+
+        # e1 = np.array([1, 2, 3])
+        # rel = np.array([1, 2, 3])
+        # prediction = session.run(graph.get_tensor_by_name("prediction:0"),
+        #                          feed_dict={
+        #                              ph_e1: e1,
+        #                              ph_rel: rel
+        #                          })
+        # print("prediction is: ", prediction)
+
+        # saving models
+        tf.saved_model.simple_save(session,
+                                   "SavedModel",
+                                   inputs={
+                                       "e1": ph_e1,
+                                       'rel': ph_rel,
+                                   },
+                                   outputs={"prediciton": prediction})
+
+        # end saving models
         session.close()
 
     if debug_mode:
@@ -479,6 +399,7 @@ def run(train_config: TrainConfig) -> Result[None, str]:
         # session = tf_debug.LocalCLIDebugWrapperSession(session)
         # session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
         start(session, ckpt)
+        # pass
 
 
 if __name__ == "__main__":

@@ -1,4 +1,3 @@
-import os
 import pdb
 import sys
 
@@ -19,8 +18,7 @@ from utils import Scope, scatter_update_tensor, set_gpu, write_graph
 # from tensorflow.python.util import deprecation
 # deprecation._PRINT_DEPRECATION_WARNINGS = False
 
-# tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.WARN)
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 
 class AdaE(object):
@@ -455,7 +453,6 @@ class AdaE2(object):
                  triple=None,
                  neg_triple=None):
         with Scope("AdaE2", prefix=self.prefix, reuse=self.reuse) as scope:
-
             e1_emb, rel_emb = self.embedding_lookup(e1, rel,
                                                     pretrained_embeddings)
 
@@ -1085,25 +1082,22 @@ def test_ada():
     NR = 3
     C = 8
 
-    ada = AdaE2(NE, NR, C)
+    ada = AdaE(NE, NR, C)
 
     with tf.name_scope("input"):
         ph_rel = tf.placeholder(tf.int64, shape=[None], name="rel")
         ph_e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
-        # ph_training = tf.placeholder(tf.bool, name="training")
-        # predict (use constant False)
-        ph_training = tf.constant(False, tf.bool, name="training")
+        ph_training = tf.placeholder(tf.bool, name="training")
 
-    (y,_,_) = ada(ph_e1, ph_rel, ph_training)
-    write_graph("AdaE2")
+    y = ada(ph_e1, ph_rel, ph_training)
+    write_graph("AdaE")
     print(y)
 
     with tf.Session() as sess:
         e1 = np.random.randint(0, NE, (B, ))
         rel = np.random.randint(0, NR, (B, ))
         sess.run(tf.global_variables_initializer())
-        # y = sess.run(y, feed_dict={ph_e1: e1, ph_rel: rel, ph_training: False})
-        y = sess.run(y, feed_dict={ph_e1: e1, ph_rel: rel})
+        y = sess.run(y, feed_dict={ph_e1: e1, ph_rel: rel, ph_training: 1})
         print(y)
         print(y.shape)
 
@@ -1147,461 +1141,29 @@ class Export(object):
         print(f"Export::use_transe2: {self.use_transe2}")
 
     def build(self):
+        print("Export::build...")
         self._build_ph()
-        self._build_train()
-        self._build_summary()
-        self._build_summary_gards()
-        self._build_summary_weights()
+        self._build_predict()
         # must be the last
-        # self._build_print_data()
         self._build_init()
 
     def _build_init(self):
+        print("build_init...")
+        print("global variables:", tf.global_variables())
         self.init = tf.variables_initializer(tf.global_variables(),
                                              name='init')
 
     def _build_ph(self):
-        with tf.name_scope("custom"):
-            self.batch_size_trn = tf.placeholder(tf.int64, (),
-                                                 "batch_size_trn")
-            self.batch_size_dev = tf.placeholder(tf.int64, (),
-                                                 "batch_size_dev")
-            self.repeat = tf.placeholder(tf.int64, (), "repeat")
-            self.lr = tf.placeholder_with_default(0.001, (), "lr")
-            # dataset
-            self.train_size = tf.placeholder_with_default(
-                tf.constant(TRAIN_SIZE, tf.int64), (), "train_size")
+        with tf.name_scope("input"):
+            self.ph_rel = tf.placeholder(tf.int64, shape=[None], name="rel")
+            self.ph_e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
 
-            self.val_size = tf.placeholder_with_default(
-                tf.constant(VAL_SIZE, tf.int64), (), "val_size")
-            self.test_size = tf.placeholder_with_default(
-                tf.constant(TEST_SIZE, tf.int64), (), "test_size")
+    def _build_predict(self):
+        logits, dis_pos, dis_neg = self._build_forward(self.ph_e1, self.ph_rel,
+                                                       False, False)
 
-            # pre-trained word embedding
-            # self.pretrained_embeddings = tf.placeholder(tf.float32, (NE, 512), "pretrained_embeddings")
-            self.pretrained_embeddings = tf.placeholder_with_default(
-                tf.zeros((NE, 512)), (NE, 512), "pretrained_embeddings")
-            self.use_transe = tf.placeholder_with_default(
-                False, (), "use_transe")
-
-    def _build_print_data(self):
-        self._build_print_data_trn()
-        self._build_print_data_val()
-        self._build_print_data_test()
-
-    def _build_print_data_trn(self):
-        with tf.name_scope("print_data_trn"):
-            triple = self.batch_data_trn["triple"].values.values
-            neg_triple = self.batch_data_trn["neg_triple"].values.values
-
-            inp_trn = self.batch_data_trn["input"]
-            inp_trn.set_shape((None, 2))
-            label_trn = self.batch_data_trn["label"]
-
-            print_op = tf.print(inp_trn,
-                                "\n",
-                                "\n",
-                                "\ntriple:\n",
-                                triple,
-                                "\n",
-                                "\nneg_triple:\n",
-                                neg_triple,
-                                "\n",
-                                "\n",
-                                type(triple),
-                                type(self.batch_data_trn["triple"]),
-                                tf.shape(triple),
-                                tf.shape(neg_triple),
-                                tf.reduce_sum(label_trn),
-                                name="print")
-
-    def _build_print_data_val(self):
-        with tf.name_scope("print_data_val"):
-            triple = self.batch_data_val["triple"].values.values
-            neg_triple = self.batch_data_val["neg_triple"].values.values
-
-            inp_val = self.batch_data_val["input"]
-            inp_val.set_shape((None, 2))
-            label_val = self.batch_data_val["label"]
-
-            print_op = tf.print(inp_val,
-                                "\n",
-                                "\n",
-                                "\ntriple:\n",
-                                triple,
-                                "\n",
-                                "\nneg_triple:\n",
-                                neg_triple,
-                                "\n",
-                                "\n",
-                                type(triple),
-                                type(self.batch_data_val["triple"]),
-                                tf.shape(triple),
-                                tf.shape(neg_triple),
-                                tf.reduce_sum(label_val),
-                                name="print")
-
-    def _build_print_data_test(self):
-        with tf.name_scope("print_data_test"):
-            triple = self.batch_data_test["triple"].values.values
-            neg_triple = self.batch_data_test["neg_triple"].values.values
-
-            inp_test = self.batch_data_test["input"]
-            inp_test.set_shape((None, 2))
-            label_test = self.batch_data_test["label"]
-
-            print_op = tf.print(inp_test,
-                                "\n",
-                                "\n",
-                                "\ntriple:\n",
-                                triple,
-                                "\n",
-                                "\nneg_triple:\n",
-                                neg_triple,
-                                "\n",
-                                "\n",
-                                type(triple),
-                                type(self.batch_data_test["triple"]),
-                                tf.shape(triple),
-                                tf.shape(neg_triple),
-                                tf.reduce_sum(label_test),
-                                name="print")
-
-    def _build_train(self):
-        with tf.name_scope("data_trn"):
-            _iterator_trn, batch_data_trn = self._build_train_dataset(
-                self.repeat, batch_size=self.batch_size_trn)
-            self.batch_data_trn = batch_data_trn
-
-            triple_trn = None
-            neg_triple_trn = None
-            if self.use_transe2:
-                triple_trn = batch_data_trn["triple"].values.values
-                neg_triple_trn = batch_data_trn["neg_triple"].values.values
-
-            inp_trn = batch_data_trn["input"]
-            inp_trn.set_shape((None, 2))
-            label_trn = batch_data_trn["label"]
-            aux_label_trn = batch_data_trn["aux_label"]
-            e1_trn, rel_trn = tf.unstack(inp_trn, axis=1)
-
-        logits, dis_pos, dis_neg = self._build_forward(e1_trn, rel_trn, True,
-                                                       None, triple_trn,
-                                                       neg_triple_trn)
-        self._build_loss(label_trn, aux_label_trn, logits, dis_pos, dis_neg)
-        self._build_optimizer()
-
-        # eval
-        with tf.name_scope("data_val"):
-            _iterator_val, batch_data_val = self._build_dev_dataset(
-                self.val_size, dev="val", batch_size=self.batch_size_dev)
-            self.batch_data_val = batch_data_val
-
-            triple_val = None
-            neg_triple_val = None
-            if self.use_transe2:
-                triple_val = batch_data_val["triple"].values.values
-                neg_triple_val = batch_data_val["neg_triple"].values.values
-
-            inp_val = batch_data_val["input"]
-            inp_val.set_shape((None, 2))
-            label_val = batch_data_val["label"]
-            aux_label_val = batch_data_val["aux_label"]
-            e1_val, rel_val = tf.unstack(inp_val, axis=1)
-
-        logits_val, _, _ = self._build_forward(e1_val, rel_val, False, True,
-                                               triple_val, neg_triple_val)
-        # if len(logits_val) > 1:
-        #     logits_val = logits_val[1]
-
-        _, _, _, self.rank_val, self.hits1_val, self.hits3_val, self.hits10_val, _ = self._build_eval(
-            logits_val,
-            label_val,
-            aux_label_val,
-            self.batch_size_dev,
-            name_suffix="val")
-
-        with tf.name_scope("data_test"):
-            _iterator_test, batch_data_test = self._build_dev_dataset(
-                self.test_size, dev="test", batch_size=self.batch_size_dev)
-            self.batch_data_test = batch_data_test
-
-            triple_test = None
-            neg_triple_test = None
-            if self.use_transe2:
-                triple_test = batch_data_test["triple"].values.values
-                neg_triple_test = batch_data_test["neg_triple"].values.values
-
-            inp_test = batch_data_test["input"]
-            inp_test.set_shape((None, 2))
-            label_test = batch_data_test["label"]
-            aux_label_test = batch_data_test["aux_label"]
-            e1_test, rel_test = tf.unstack(inp_test, axis=1)
-
-        logits_test, _, _ = self._build_forward(e1_test, rel_test, False, True,
-                                                triple_test, neg_triple_test)
-
-        # if len(logits_test) > 1:
-        #     logits_test = logits_test[1]
-
-        _, _, _, self.rank_test, self.hits1_test, self.hits3_test, self.hits10_test, _ = self._build_eval(
-            logits_test,
-            label_test,
-            aux_label_test,
-            self.batch_size_dev,
-            name_suffix="test")
-
+        prediction = tf.nn.sigmoid(logits, name="prediction")
         self.saver = tf.train.Saver(tf.global_variables())
-
-    def _build_train_dataset(self, repeat_num, batch_size=4):
-
-        with tf.name_scope('dataset_trn'):
-            # dataset_trn = tf.data.TFRecordDataset("symptom_trn.tfrecord",
-            #                                       num_parallel_reads=16)
-            dataset_trn = tf.data.TFRecordDataset(
-                "symptom_dis_masked_label_trn.tfrecord", num_parallel_reads=16)
-
-            # Create a description of the features.
-            feature_description_trn = {
-                'input':
-                tf.io.FixedLenSequenceFeature([],
-                                              tf.int64,
-                                              default_value=0,
-                                              allow_missing=True),
-                'label':
-                tf.io.FixedLenSequenceFeature([],
-                                              tf.int64,
-                                              default_value=0,
-                                              allow_missing=True),
-                'num_ent':
-                tf.io.FixedLenSequenceFeature([],
-                                              tf.int64,
-                                              default_value=0,
-                                              allow_missing=True),
-                'aux_label':
-                tf.io.FixedLenSequenceFeature([],
-                                              tf.int64,
-                                              default_value=0,
-                                              allow_missing=True),
-            }
-
-            def _parse_function_trn(example_proto):
-                return tf.io.parse_single_example(example_proto,
-                                                  feature_description_trn)
-
-            def _transform(d):
-                with tf.name_scope("transform"):
-                    zeros = tf.zeros(self.NE, name="zeros")
-                    label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
-                    d["num_label"] = tf.shape(label)
-                    label = scatter_update_tensor(
-                        zeros, tf.cast(tf.expand_dims(label, axis=1),
-                                       tf.int32),
-                        tf.ones_like(label, dtype=tf.float32))
-                    d["label"] = label
-
-                    aux_label = tf.convert_to_tensor(d["aux_label"],
-                                                     dtype=tf.int64)
-                    aux_label = scatter_update_tensor(
-                        zeros,
-                        tf.cast(tf.expand_dims(aux_label, axis=1), tf.int32),
-                        tf.ones_like(aux_label, dtype=tf.float32))
-                    aux_label = 1 - (-aux_label + label)
-                    d["aux_label"] = aux_label
-                    return d
-
-            def _transform2(d):
-                with tf.name_scope("transform"):
-                    label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
-                    zeros = tf.zeros(self.NE, name="zeros")
-                    label = scatter_update_tensor(
-                        zeros, tf.cast(tf.expand_dims(label, axis=1),
-                                       tf.int32),
-                        tf.ones_like(label, dtype=tf.float32))
-                    d["label"] = label
-
-                    ents = tf.range(0, self.NE, dtype=tf.int64, name="ents")
-                    pos_label_num = tf.cast(tf.reduce_sum(label), tf.int64)
-                    pos_label = tf.boolean_mask(ents, tf.cast(label, tf.bool))
-                    neg_label = tf.boolean_mask(ents,
-                                                tf.cast(1 - label, tf.bool))
-                    neg_label_num = tf.subtract(tf.cast(self.NE, tf.int64),
-                                                pos_label_num)
-                    rand_idx = tf.cast(
-                        tf.random.uniform((pos_label_num, ), 0,
-                                          tf.cast(neg_label_num, tf.float32)),
-                        tf.int64)
-                    neg_label = tf.gather(neg_label, rand_idx)
-
-                    hrs = tf.broadcast_to(d["input"], (pos_label_num, 2))
-                    pos_labels = tf.expand_dims(pos_label, axis=1)
-                    triple = tf.concat((hrs, pos_labels),
-                                       axis=1,
-                                       name="triple")
-
-                    neg_labels = tf.expand_dims(neg_label, axis=1)
-                    neg_triple = tf.concat((hrs, neg_labels),
-                                           axis=1,
-                                           name="neg_triple")
-
-                    d["triple"] = tf.RaggedTensor.from_tensor(
-                        tf.expand_dims(triple, axis=0), name="triple_trn")
-                    d["neg_triple"] = tf.RaggedTensor.from_tensor(
-                        tf.expand_dims(neg_triple, axis=0),
-                        name="neg_triple_trn")
-
-                    # d["num_label"] = tf.shape(label)
-                    # d["pos_label_num"] = pos_label_num
-
-                    # foo = tf.random.uniform((5, ), 0, 10)
-                    # d["foo"] = foo
-                    # d["bar"] = tf.add(foo, 20.)
-
-                    return d
-
-            if self.use_transe2:
-                print("use _transform2")
-                transform = _transform2
-            else:
-                print("use _transform")
-                transform = _transform
-
-            dataset_trn = dataset_trn.map(_parse_function_trn,
-                                          num_parallel_calls=16).map(
-                                              transform, num_parallel_calls=16)
-
-            iterator_trn = dataset_trn.take(self.train_size).shuffle(
-                tf.cast((tf.cast(self.train_size, tf.float32) * 1.2),
-                        tf.int64)).repeat(repeat_num).batch(
-                            batch_size, drop_remainder=True).prefetch(
-                                batch_size).make_initializable_iterator()
-
-            # iterator_trn = dataset_trn.take(
-            #     self.train_size).repeat(repeat_num).batch(
-            #         batch_size, drop_remainder=True).prefetch(
-            #             batch_size).make_initializable_iterator()
-            # iterator = dataset.shuffle(30000).repeat(10).batch(4).prefetch(4).make_one_shot_iterator()
-
-            batch_data_trn = iterator_trn.get_next("get_next")
-        return iterator_trn, batch_data_trn
-
-    def _build_dev_dataset(self, dev_size, dev="test", batch_size=4):
-        with tf.name_scope(f"dataset_{dev}"):
-            dataset_dev = tf.data.TFRecordDataset(f"symptom_{dev}.tfrecord",
-                                                  num_parallel_reads=16)
-            feature_description_dev = {
-                'input':
-                tf.io.FixedLenSequenceFeature([],
-                                              tf.int64,
-                                              default_value=0,
-                                              allow_missing=True),
-                # 'num_ent':
-                # tf.io.FixedLenSequenceFeature([],
-                #                               tf.int64,
-                #                               default_value=0,
-                #                               allow_missing=True),
-                'num_ent':
-                tf.io.FixedLenFeature(
-                    [1],
-                    tf.int64,
-                    default_value=0,
-                ),
-                'label':
-                tf.io.FixedLenSequenceFeature([],
-                                              tf.int64,
-                                              default_value=0,
-                                              allow_missing=True),
-                'aux_label':
-                tf.io.FixedLenSequenceFeature([],
-                                              tf.int64,
-                                              default_value=0,
-                                              allow_missing=True),
-            }
-
-            def _parse_function_dev(example_proto):
-                return tf.io.parse_single_example(example_proto,
-                                                  feature_description_dev)
-
-            def _transform(d):
-                with tf.name_scope("transform"):
-                    zeros = tf.zeros(self.NE, name="zeros")
-
-                    aux_label = tf.convert_to_tensor(d["aux_label"],
-                                                     dtype=tf.int64)
-                    # [m,] => [m, 1]
-                    aux_label = scatter_update_tensor(
-                        zeros,
-                        tf.cast(tf.expand_dims(aux_label, axis=1), tf.int32),
-                        tf.ones_like(aux_label, dtype=tf.float32))
-                    # soft_label = tf.divide(1., 1. - eps) * label + tf.divide(1.0, N)
-                    d["aux_label"] = aux_label
-                    d["label"] = tf.RaggedTensor.from_tensor(
-                        tf.expand_dims(d["label"], axis=0))
-                    return d
-
-            def _transform2(d):
-                with tf.name_scope("transform"):
-                    zeros = tf.zeros(self.NE, name="zeros")
-                    # aux_label [3, 4, 6] and label: [3]
-                    # boolean mask from aux_label and generate label's positive number sample
-                    label = tf.convert_to_tensor(d["label"], dtype=tf.int64)
-
-                    aux_label = tf.convert_to_tensor(d["aux_label"],
-                                                     dtype=tf.int64)
-                    # [m,] => [m, 1]
-                    aux_label = scatter_update_tensor(
-                        zeros,
-                        tf.cast(tf.expand_dims(aux_label, axis=1), tf.int32),
-                        tf.ones_like(aux_label, dtype=tf.float32))
-                    # soft_label = tf.divide(1., 1. - eps) * label + tf.divide(1.0, N)
-
-                    ents = tf.range(0, self.NE, dtype=tf.int64, name="ents")
-                    pos_label = label
-                    pos_label_num = tf.cast(tf.shape(label)[0], tf.int64)
-                    neg_label = tf.boolean_mask(
-                        ents, tf.cast(1 - aux_label, tf.bool))
-                    neg_label_num = tf.subtract(
-                        tf.cast(self.NE, tf.int64),
-                        tf.cast(tf.reduce_sum(aux_label), tf.int64))
-                    rand_idx = tf.cast(
-                        tf.random.uniform((pos_label_num, ), 0,
-                                          tf.cast(neg_label_num, tf.float32)),
-                        tf.int64)
-                    neg_label = tf.gather(neg_label, rand_idx)
-
-                    hrs = tf.broadcast_to(d["input"], (pos_label_num, 2))
-                    pos_labels = tf.expand_dims(pos_label, axis=1)
-                    triple = tf.concat((hrs, pos_labels),
-                                       axis=1,
-                                       name="triple")
-                    d["triple"] = tf.RaggedTensor.from_tensor(
-                        tf.expand_dims(triple, axis=0))
-
-                    neg_labels = tf.expand_dims(neg_label, axis=1)
-                    neg_triple = tf.concat((hrs, neg_labels),
-                                           axis=1,
-                                           name="neg_triple")
-                    d["neg_triple"] = tf.RaggedTensor.from_tensor(
-                        tf.expand_dims(neg_triple, axis=0))
-
-                    d["aux_label"] = aux_label
-                    d["label"] = tf.RaggedTensor.from_tensor(
-                        tf.expand_dims(d["label"], axis=0))
-                    return d
-
-            if self.use_transe2:
-                transform = _transform2
-            else:
-                transform = _transform
-
-            dataset_dev = dataset_dev.map(_parse_function_dev,
-                                          num_parallel_calls=16).map(
-                                              transform, num_parallel_calls=16)
-            iterator_dev = dataset_dev.take(dev_size).batch(
-                batch_size, drop_remainder=True).prefetch(
-                    batch_size).make_initializable_iterator()
-            batch_data_dev = iterator_dev.get_next("get_next")
-        return iterator_dev, batch_data_dev
 
     def _build_forward(self,
                        e1,
@@ -1648,8 +1210,7 @@ class Export(object):
                                   wd=self.wd,
                                   prefix=scope.prefix)
 
-                logits, dis_pos, dis_neg = model(e1, rel, training,
-                                                 self.pretrained_embeddings,
+                logits, dis_pos, dis_neg = model(e1, rel, training, None,
                                                  triple, neg_triple)
             return logits, dis_pos, dis_neg
         else:
@@ -1689,300 +1250,24 @@ class Export(object):
                                   reuse=True,
                                   wd=self.wd,
                                   prefix=scope.prefix)
-                logits, dis_pos, dis_neg = model(e1, rel, training,
-                                                 self.pretrained_embeddings,
+                logits, dis_pos, dis_neg = model(e1, rel, training, None,
                                                  triple, neg_triple)
             return logits, dis_pos, dis_neg
-
-    def _build_loss(self,
-                    labels,
-                    masked_labels,
-                    logits,
-                    dis_pos,
-                    dis_neg,
-                    margin=1.0):
-        with tf.name_scope('loss'):
-            loss_fn = symmetric_cross_entropy_stable(self.alpha, self.beta,
-                                                     self.A)
-            print(f"use use_other_loss: {self.use_other_loss}")
-            if not self.use_other_loss:
-                # self.loss_model = tf.reduce_sum(
-                #     tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
-                #                                     logits=logits *
-                #                                     masked_labels,
-                #                                     label_smoothing=0.1),
-                #     name="loss_model")
-                # self.loss_model = tf.reduce_mean(
-                #     BootstrappedSigmoidClassificationLoss(
-                #         0.95, bootstrap_type='hard')(logits * masked_labels,
-                #                                      labels),
-                #     name="loss_model")
-                if self.use_masked_label:
-                    # self.loss_model = tf.reduce_mean(GCELoss(self.q)(
-                    #     logits * masked_labels, labels),
-                    #                                  name="loss_model")
-
-                    print("using SCELoss-stable...")
-                    self.loss_ce, self.loss_rce = loss_fn(
-                        labels, logits * masked_labels)
-                    self.loss_model = tf.add(self.loss_ce,
-                                             self.loss_rce,
-                                             name="loss_model")
-
-                else:
-                    # self.loss_model = tf.reduce_mean(GCELoss(self.q)(logits, labels),
-                    #                                 name="loss_model")
-
-                    print("using SCELoss-stable...")
-                    self.loss_ce, self.loss_rce = loss_fn(labels, logits)
-                    self.loss_model = tf.add(self.loss_ce,
-                                             self.loss_rce,
-                                             name="loss_model")
-
-                print(self.loss_model)
-
-                # tf.reduce_sum(tf.losses.sigmoid_cross_entropy(
-                #     multi_class_labels=labels,
-                #     logits=logits * masked_labels,
-                #     label_smoothing=0.1),
-                #               name="loss_model")
-                # self.loss_margin = tf.reduce_mean(tf.maximum(
-                #     dis_pos - dis_neg + margin, 0),
-                #                                   name="loss_margin")
-                # self.loss = tf.add(self.loss_model,
-                #                    self.loss_margin,
-                # name="loss")
-                self.loss = tf.add(self.loss_model,
-                                   tf.losses.get_regularization_loss(),
-                                   name="loss_all")
-                print(self.loss)
-            else:
-                logits_label, logits = logits
-                print("using prob_loss...")
-                prob_labels = tf.sigmoid(logits_label)
-                labels = prob_labels * labels + (1 - prob_labels) * (1 -
-                                                                     labels)
-                self.loss_model = tf.reduce_mean(
-                    tf.losses.sigmoid_cross_entropy(multi_class_labels=labels,
-                                                    logits=logits),
-                    name="loss_model")
-
-                self.loss_margin = tf.reduce_mean(tf.maximum(
-                    dis_pos - dis_neg + margin, 0),
-                                                  name="loss_margin")
-                self.loss = tf.add(self.loss_model,
-                                   self.loss_margin,
-                                   name="loss")
-
-    def _build_optimizer(self):
-        with tf.name_scope('optimizer'):
-            self.global_step = tf.Variable(0,
-                                           dtype=tf.int64,
-                                           trainable=False,
-                                           name='global_step')
-            # self.optimize = tf.train.AdamOptimizer(self.lr).minimize(
-            #     self.loss, self.global_step, name="optimize")
-            self.optimizer = tf.train.AdamOptimizer(self.lr)
-            self.grads_and_vars = self.optimizer.compute_gradients(self.loss)
-            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-            with tf.control_dependencies([
-                    tf.assign_add(self.global_step,
-                                  tf.constant(1, dtype=tf.int64)),
-                    *update_ops,
-            ]):
-                self.optimize = self.optimizer.apply_gradients(
-                    self.grads_and_vars, name="optimize")
-
-            self.optimizer_sgd = tf.train.GradientDescentOptimizer(self.lr)
-            self.grads_and_vars = self.optimizer_sgd.compute_gradients(
-                self.loss)
-            with tf.control_dependencies([
-                    tf.assign_add(self.global_step,
-                                  tf.constant(1, dtype=tf.int64)), *update_ops
-            ]):
-                self.optimize_sgd = self.optimizer_sgd.apply_gradients(
-                    self.grads_and_vars, name="optimize_sgd")
-
-    def _build_summary(self):
-        with tf.name_scope('summaries'):
-            loss_s = tf.summary.scalar('loss/loss', self.loss)
-            # hloss_s = tf.summary.histogram('histogram loss', self.loss)
-
-            loss_model_s = tf.summary.scalar('loss/model', self.loss_model)
-            loss_ce_s = tf.summary.scalar('loss/ce', self.loss_ce)
-            loss_rce_s = tf.summary.scalar('loss/rce', self.loss_rce)
-            self.summary_op = tf.summary.merge(
-                [loss_s, loss_model_s, loss_ce_s, loss_rce_s],
-                name="summary_op")
-
-            self.ph_rank_val = tf.placeholder(tf.float32, (), "rank_val")
-            self.ph_hit1_val = tf.placeholder(tf.float32, (), "hit1_val")
-            self.ph_hit3_val = tf.placeholder(tf.float32, (), "hit3_val")
-            self.ph_hit10_val = tf.placeholder(tf.float32, (), "hit10_val")
-            rank_s = tf.summary.scalar('rank', self.ph_rank_val)
-            hit1_s = tf.summary.scalar('hit1', self.ph_hit1_val)
-            hit3_s = tf.summary.scalar('hit3', self.ph_hit3_val)
-            hit10_s = tf.summary.scalar('hit10', self.ph_hit10_val)
-            self.summary_val_op = tf.summary.merge(
-                [rank_s, hit1_s, hit3_s, hit10_s], name="summary_val_op")
-
-    def _build_summary_gards(self):
-        with tf.name_scope('gradients'):
-            summaries = []
-            for grad, var in self.grads_and_vars:
-                if grad is not None:
-                    summaries.append(tf.summary.histogram(var.op.name, grad))
-                    summaries.append(
-                        tf.summary.scalar(var.op.name, tf.norm(grad, 2)))
-            self.summary_grads = tf.summary.merge(summaries,
-                                                  name="summary_grads_op")
-
-    def _build_summary_weights(self):
-        with tf.name_scope('weights'):
-            summaries = []
-            for var in tf.global_variables():
-                if "forward" in var.op.name and "Adam" not in var.op.name:
-                    var_name = var.op.name[8:]
-                    print(var_name, var.dtype)
-                    summaries.append(tf.summary.histogram(var_name, var))
-                    summaries.append(
-                        tf.summary.scalar(var_name, tf.norm(var, 2)))
-            self.summary_weights = tf.summary.merge(summaries,
-                                                    name="summary_weights_op")
-
-    #TODO: export sorted_idx or pred_ents
-    def _build_eval(self,
-                    logits,
-                    labels,
-                    auxes,
-                    batch_size=3,
-                    name_suffix="val"):
-        with tf.device('/cpu:0'):
-            with tf.variable_scope(f"eval_{name_suffix}"):
-                preds = tf.nn.sigmoid(logits, name="preds")
-
-                i = tf.constant(0, dtype=tf.int64)
-                arr_idx = tf.constant(0, dtype=tf.int64)
-                ranks = tf.TensorArray(tf.int32,
-                                       size=1,
-                                       element_shape=(),
-                                       dynamic_size=True,
-                                       name=f"ranks_{name_suffix}")
-
-                scores = preds * tf.subtract(1.0, tf.cast(auxes, tf.float32))
-
-                # preds is tensor(readout)
-                def cond(i, arr_idx, preds, scores, labels, ranks):
-                    return tf.less(i, batch_size)
-
-                def loop_body(i, arr_idx, preds, scores, labels, ranks):
-                    # the i-th row
-                    # build once
-                    pred = preds[i]
-                    score = scores[i]
-                    label = labels[i][0]  #[0] for ragged extra axis
-
-                    # print_op = tf.print("===\n", i, label)
-
-                    # with tf.control_dependencies([print_op]):
-                    row_len = tf.cast(tf.shape(label)[0], tf.int64)
-
-                    def cond_inner(j, i, row_len, arr_idx, pred, score, label,
-                                   ranks):
-                        return tf.less(j, row_len)
-
-                    def loop_body_inner(j, i, row_len, arr_idx, pred, score,
-                                        label, ranks):
-                        # build once
-                        l = label[j]
-                        # pick out cur position
-                        p = pred[l]
-                        # op3 = tf.print("p shape: ", tf.shape(p))
-                        # op4 = tf.print("p : ", p, "\n", "label: ", label, "l: ", l)
-                        # # race?
-                        # print_op = tf.print("score1", score)
-
-                        # with tf.control_dependencies([print_op, op3, op4]):
-                        indices = tf.cast(tf.broadcast_to(l, [1, 1]), tf.int32)
-                        score_l = scatter_update_tensor(score, indices, [p])
-
-                        # print_op = tf.print("score2", score_l)
-
-                        # with tf.control_dependencies([print_op]):
-                        sorted_idx = tf.argsort(score_l,
-                                                direction="DESCENDING")
-                        # print_op = tf.print("sorted_idx", sorted_idx)
-
-                        # with tf.control_dependencies([print_op]):
-                        rank = tf.add(tf.argsort(sorted_idx)[l], 1)
-                        # print_rank = tf.print("==== rank ===: ", rank)
-
-                        # with tf.control_dependencies([print_rank]):
-                        ranks = ranks.write(tf.cast(arr_idx, tf.int32), rank)
-
-                        return (tf.add(j, 1), i, row_len, tf.add(arr_idx, 1),
-                                pred, score, label, ranks)
-
-                    j = tf.constant(0, dtype=tf.int64)
-
-                    # 2)
-                    j, i, row_len, arr_idx, pred, score, label, ranks_inner = tf.while_loop(
-                        cond_inner,
-                        loop_body_inner,
-                        (j, i, row_len, arr_idx, pred, score, label, ranks),
-                        parallel_iterations=16)
-
-                    return (tf.add(i, 1), arr_idx, preds, scores, labels,
-                            ranks_inner)
-
-                # 1)
-                i, arr_idx, preds, scores, labels, ranks_out = tf.while_loop(
-                    cond,
-                    loop_body, [i, arr_idx, preds, scores, labels, ranks],
-                    parallel_iterations=16)
-
-                # ranks -> hits 1/3/10
-                ranks_tensor = ranks_out.stack()
-
-                rank = tf.reduce_mean(tf.cast(ranks_tensor, tf.float32),
-                                      name=f"rank_{name_suffix}")
-                hits1 = tf.reduce_mean(tf.where(
-                    tf.less(ranks_tensor, 2),
-                    tf.ones_like(ranks_tensor, dtype=tf.float32),
-                    tf.zeros_like(ranks_tensor, dtype=tf.float32)),
-                                       name=f"hits1_{name_suffix}")
-                hits3 = tf.reduce_mean(tf.where(
-                    tf.less(ranks_tensor, 4),
-                    tf.ones_like(ranks_tensor, dtype=tf.float32),
-                    tf.zeros_like(ranks_tensor, dtype=tf.float32)),
-                                       name=f"hits3_{name_suffix}")
-                hits10 = tf.reduce_mean(tf.where(
-                    tf.less(ranks_tensor, 11),
-                    tf.ones_like(ranks_tensor, dtype=tf.float32),
-                    tf.zeros_like(ranks_tensor, dtype=tf.float32)),
-                                        name=f"hits10_{name_suffix}")
-
-                eval_op = tf.group(rank,
-                                   hits1,
-                                   hits3,
-                                   hits10,
-                                   name=f"eval_op_{name_suffix}")
-
-        return preds, scores, ranks_tensor, rank, hits1, hits3, hits10, eval_op
 
     def export(self):
         self.build()
 
         definition = tf.Session().graph_def
         tf.io.write_graph(definition,
-                          self.output_dir,
+                          "export/AdaE2_SaveModel",
                           'model_txt.pb',
                           as_text=True)
         # tf.io.write_graph(definition,
         #                   self.output_dir,
         #                   'model.pb',
         #                   as_text=False)
-        write_graph(self.model_name)
+        # write_graph(self.model_name)
+        write_graph("AdaE2_SaveModel")
 
 
 def build_graph(E: int = 512,
@@ -1997,7 +1282,8 @@ def build_graph(E: int = 512,
                 alpha=0.1,
                 beta=1.0,
                 A=1e-4) -> None:
-    print(f"build_graph:: model: {model_name} use_transe: {use_transe2}")
+    # print(f"build_graph:: model: {model_name} use_transe: {use_transe2}")
+    print(f"build_graph:: model: {model_name}")
     if model_name == "AdaE" or model_name == "AdaE2" or model_name == "AdaE3":
         export = Export(
             NE,
@@ -2030,7 +1316,8 @@ def build_graph(E: int = 512,
             beta=-beta,
             A=A,
         )
-    export.build()
+    # export.build()
+    export.export()
 
 
 def export(model_name="AdaE", use_transe2=False):
@@ -2061,108 +1348,14 @@ def export(model_name="AdaE", use_transe2=False):
 
     export.export()
 
-def save_model():
-    E: int = 512
-    C: int = 32
-    v_dim: int = 16
-    ada = AdaE2(NE, NR, E, C, v_dim=v_dim)
-
-    with tf.name_scope("input"):
-        ph_rel = tf.placeholder(tf.int64, shape=[None], name="rel")
-        ph_e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
-        # ph_training = tf.placeholder(tf.bool, name="training")
-        # predict (use constant False)
-        ph_training = tf.constant(False, tf.bool, name="training")
-
-    (y,_,_) = ada(ph_e1, ph_rel, ph_training)
-
-    write_graph("AdaE2_SaveModel")
-    print(y)
-
-    # saver = tf.train.Saver(tf.global_variables())
-    saver = tf.train.Saver()
-    session = tf.Session()
-    # graph = session.graph
-    # op_load = graph.get_operation_by_name("save/restore_all")
-
-    # ph_file_path = graph.get_tensor_by_name("save/Const:0")
-
-    # def init():
-    #     session.run(tf.global_variables_initializer())
-
-    def restore(ckpt):
-        # init()
-        cur_dir = "/home/llouice/dev/Rust/my/ada_python"
-        ckpt_dir = "checkpoints"
-        ex = "full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz256"
-
-        ckpt_path = f"{cur_dir}/{ckpt_dir}/{ex}/{ckpt}"
-        print("last: ", saver.last_checkpoints)
-        # ckpt_path = f"{cur_dir}/{ckpt_dir}/{ex}"
-        # op_load = graph.get_operation_by_name("save/restore_all")
-        # session.run(op_load, feed_dict={ph_file_path: ckpt_path})
-        saver.restore(session, ckpt_path)
-    ckpt =  "rank_5198.26474609375_loss_10.498673604516423_epoch_100_step_17000.data-00000-of-00001"
-    # ckpt =  "rank_5198.26474609375_loss_10.498673604516423_epoch_100_step_17000"
-    restore(ckpt)
-    session.close()
-
-def save_model2():
-    session = tf.Session()
-    graph = session.graph
-
-    E: int = 512
-    C: int = 32
-    v_dim: int = 16
-    ada = AdaE2(NE, NR, E, C, v_dim=v_dim)
-
-    with tf.name_scope("input"):
-        ph_rel = tf.placeholder(tf.int64, shape=[None], name="rel")
-        ph_e1 = tf.placeholder(tf.int64, shape=[None], name="e1")
-        # ph_training = tf.placeholder(tf.bool, name="training")
-        # predict (use constant False)
-        ph_training = tf.constant(True, tf.bool, name="training")
-
-    (y,_,_) = ada(ph_e1, ph_rel, ph_training)
-
-    print(y)
-
-    saver = tf.compat.v1.train.Saver(tf.global_variables())
-    # saver = tf.train.Saver()
-    op_save = graph.get_operation_by_name("save/control_dependency")
-    op_load = graph.get_operation_by_name("save/restore_all")
-
-    ph_file_path = graph.get_tensor_by_name("save/Const:0")
-
-    def init():
-        session.run(tf.global_variables_initializer())
-
-    def restore(ckpt):
-        # init()
-        cur_dir = "/home/llouice/dev/Rust/my/ada_python"
-        ckpt_dir = "checkpoints"
-        ex = "full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz256"
-
-        ckpt_path = f"{cur_dir}/{ckpt_dir}/{ex}/{ckpt}"
-        print("last: ", saver.last_checkpoints)
-        # ckpt_path = f"{cur_dir}/{ckpt_dir}/{ex}"
-        # op_load = graph.get_operation_by_name("save/restore_all")
-        session.run(op_load, feed_dict={ph_file_path: ckpt_path})
-        # saver.restore(session, ckpt_path)
-    ckpt =  "rank_5198.26474609375_loss_10.498673604516423_epoch_100_step_17000.data-00000-of-00001"
-    # ckpt =  "rank_5198.26474609375_loss_10.498673604516423_epoch_100_step_17000"
-
-    init()
-    session.run(op_save, feed_dict={ph_file_path: "checkpoints/null/save"})
-    print("last: ", saver.last_checkpoints)
-    restore(ckpt)
-
-    write_graph("AdaE2_SaveModel")
-    session.close()
 
 if __name__ == "__main__":
-    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-    # save_model()
-    save_model2()
-    # test_ada()
-    # test_gcn()
+    # test()
+    if len(sys.argv) > 1:
+        model_name = sys.argv[1]
+        use_transe2 = False
+        if len(sys.argv) > 2:
+            use_transe2 = True
+        export(model_name, use_transe2)
+    else:
+        export()

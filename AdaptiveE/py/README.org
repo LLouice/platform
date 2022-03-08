@@ -5,6 +5,9 @@ full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz256
 
 
 * SaveModel
-** TODO use_pretrain
-** training
-** build new input feed dict
+** DONE use_pretrain(no need for a trained model)
+CLOSED: [2022-03-08 Tue 17:31]
+** DONE training
+CLOSED: [2022-03-08 Tue 17:09]
+** DONE build new input feed dict
+CLOSED: [2022-03-08 Tue 17:09]

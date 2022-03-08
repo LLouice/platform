@@ -26,6 +26,13 @@ start_docker:
 # end project initialization
 
 
+# start frontend and backend
+# start:
+#     cd server && cargo run
+# end start frontend and backend
+
+
+
 # front
 front:
     trunck serve
