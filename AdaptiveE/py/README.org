@@ -11,3 +11,8 @@ CLOSED: [2022-03-08 Tue 17:31]
 CLOSED: [2022-03-08 Tue 17:09]
 ** DONE build new input feed dict
 CLOSED: [2022-03-08 Tue 17:09]
+** Rust
+- repo [[tix-tensorflow-example][https://github.com/kykosic/actix-tensorflow-example/blob/master/server/src/main.rs]]
+- blog [[https://cetra3.github.io/blog/face-detection-with-actix-web/][Face Detection with Actix Web]]
+*** TODO rust load model
+*** TODO actix-web use model
