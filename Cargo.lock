@@ -2391,6 +2391,7 @@ dependencies = [
  "seq-macro",
  "serde",
  "serde_json",
+ "serving",
  "statrs",
  "structopt",
  "strum",

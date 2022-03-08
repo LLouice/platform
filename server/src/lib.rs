@@ -1,5 +1,6 @@
 #![allow(macro_expanded_macro_exports_accessed_by_absolute_paths)]
 
+// module data is used by frontend(wasm32)
 cfg_if::cfg_if! {
     if #[cfg(target_arch = "wasm32")] {
         pub mod data;
@@ -14,5 +15,7 @@ cfg_if::cfg_if! {
 
         pub mod data;
         pub use data::GraphData;
+
+        pub mod adae;
     }
 }
