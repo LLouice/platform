@@ -1,0 +1,10 @@
+* Best experiment
+full-AdaE2-no_dropout-reg-SCELoss_stable-a10_b1-wd1e2-bnfixed-bsz256
+0.222 | 0.2998 | 0.3797
+
+
+
+* SaveModel
+** TODO use_pretrain
+** training
+** build new input feed dict
