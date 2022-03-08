@@ -1,0 +1,5 @@
+alias fsm := fetch-SavedModel
+
+
+fetch-SavedModel:
+    scp -P 17877 -r llouice@10.112.186.186:/home/llouice/dev/Rust/my/ada_python/SavedModel .

@@ -6,7 +6,9 @@ dprint.json
 *.log
 .**
 
-/target
+*tfrecord
+
+target/
 /doc
 /data
 
@@ -23,9 +25,22 @@ frontend/src/get_payload_script.js
 frontend/src/foo.js
 
 server/static
+server/*txt
+server/*json
+
 
 scripts
 tmp.sh
 /dump.rdb
 server/symptom_full.old.tfrecord
 *.gz
+
+AdaptiveE/py/examples/
+AdaptiveE/py/explore/dataset.py
+AdaptiveE/py/git-graph
+AdaptiveE/py/graph.ps
+AdaptiveE/py/tensorboard.txt
+AdaptiveE/py/transe.py
+AdaptiveE/w2v/
+
+serving/SavedModel

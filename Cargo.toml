@@ -3,6 +3,7 @@
 members = [
     "server",
     "frontend",
+    "serving"
     # "AdaptiveE/ada-rs",
 ]
 

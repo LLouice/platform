@@ -100,6 +100,11 @@
   - [[#pkgseg-pythoh][pkgseg-pythoh]]
   - [[#missing][Missing]]
 - [[#train-data-and-label][Train data and label]]
+- [[#serving][Serving]]
+  - [[#rust][Rust]]
+    - [[#rust-load-model][rust load model]]
+    - [[#adaeinput][AdaEInput]]
+    - [[#actix-web-use-model][actix-web use model]]
 - [[#usage][Usage]]
 
 * Project
@@ -1136,6 +1141,38 @@ val: (h,r): (t4) also need (t1,t2,t3) for masked the prediction
 test: (h,r): (t5) also need (t1,t2,t3) for masked the prediction
 
 record <= hr_map_trn; hr_map_val; hr_map_test <- hr_map
+
+* Serving
+#+begin_src example
+  MetaGraphDef with tag-set: 'serve' contains the following SignatureDefs:
+
+signature_def['serving_default']:
+  The given SavedModel SignatureDef contains the following input(s):
+    inputs['e1'] tensor_info:
+        dtype: DT_INT64
+        shape: (-1)
+        name: input/e1:0
+    inputs['rel'] tensor_info:
+        dtype: DT_INT64
+        shape: (-1)
+        name: input/rel:0
+  The given SavedModel SignatureDef contains the following output(s):
+    outputs['prediciton'] tensor_info:
+        dtype: DT_FLOAT
+        shape: (-1, 28754)
+        name: prediction:0
+  Method name is: tensorflow/serving/predict
+#+end_src
+
+** Rust
+- repo [[tix-tensorflow-example][https://github.com/kykosic/actix-tensorflow-example/blob/master/server/src/main.rs]]
+- blog [[https://cetra3.github.io/blog/face-detection-with-actix-web/][Face Detection with Actix Web]]
+*** DONE rust load model
+CLOSED: [2022-03-08 Tue 18:42]
+*** AdaEInput
+frontend -> rel::name -> map id -> AdaEInput::from -> predict
+*** TODO actix-web use model
+
 * Usage
 #+begin_src sh
   cd server && mk r
