@@ -15,7 +15,7 @@ pub(crate) use platform::data::{NodeInfo, NodeLabel, QRandomSample};
 
 use crate::{into_js_fn, into_js_fn_mut, js_apply, js_get, js_set};
 use crate::bindings;
-use crate::pages::{category::PageCategory, home::Home, page_not_found::PageNotFound};
+use crate::pages::{category::PageCategory, home::Home, ai::AI, page_not_found::PageNotFound};
 
 #[derive(Debug, Default)]
 pub(crate) struct App {
@@ -58,6 +58,7 @@ pub(crate) enum AppMsg {
     FillPlaceholder,
     ChangeRouteCat(NodeLabel),
     RefreshSample,
+    AIPredict,
 }
 
 impl Component for App {
@@ -135,6 +136,22 @@ impl Component for App {
                 };
                 App::display_word_cloud(query);
                 true
+            }
+            AIPredict => {
+                let inp = self.get_input();
+                if inp.value().len() == 0 {
+                    inp.set_value(inp.placeholder().as_str());
+                }
+
+                push_route(Route::AI {
+                    node_info: NodeInfo {
+                        label: self.search_cat,
+                        name: inp.value(),
+                    }
+                }
+                );
+                true
+
             }
             _ => false,
         }
@@ -390,13 +407,9 @@ impl App {
     }
 
     fn view_nav_ai_prediction(&self, link: &Scope<Self>) -> Html {
+        let predict = link.callback(|_| AppMsg::AIPredict);
         html! {
-            <Link<Route> classes={classes!("navbar-item")}
-                            route={Route::AI{ node_info: NodeInfo {label: self.search_cat,
-                                                name: if let Some(v) = &self.search_value
-                                                    { v.clone()} else {self.search_placeholder.clone()}
-                            }} }> { "AI" }
-            </Link<Route>>
+            <a role="button" class={classes!("navbar-item", "is-bold")} onclick={predict}>{ "AI" }</a>
         }
     }
 
@@ -734,9 +747,8 @@ fn switch(routes: &Route) -> Html {
             html! { <PageCategory query={*query}/> }
         }
 
-        Route::AI { node_info: NodeInfo { label, name } } => {
-            log::debug!("in switch route AI, label: {:?} name: {:?}", label, name);
-            html! { <Home label={Some(*label)} name={Some(name.clone())} /> }
+        Route::AI { node_info } => {
+            html! { <AI node_info={node_info.clone()} /> }
         }
 
         Route::NotFound => {
