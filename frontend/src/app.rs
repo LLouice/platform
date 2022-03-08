@@ -40,6 +40,9 @@ pub enum Route {
     #[at("/category/:query")]
     Category { query: QRandomSample },
 
+    #[at("/ai/:node_info")]
+    AI { node_info: NodeInfo },
+
     #[not_found]
     #[at("/404")]
     NotFound,
@@ -97,6 +100,7 @@ impl Component for App {
                     NodeLabel::Drug => "undefined",
                     NodeLabel::Department => "undefined",
                     NodeLabel::Check => "undefined",
+                    NodeLabel::Area => "undefined",
                     _ => "undefined",
                 };
                 self.search_placeholder = ph.to_string();
@@ -221,6 +225,7 @@ impl App {
                         <div class="navbar-end">
                             { self.view_nav_search_cats(link) }
 
+
                              <div class="navbar-item">
                                 <div class="field">
                                     <p class="control has-icons-right">
@@ -232,6 +237,9 @@ impl App {
                                     </p>
                                 </div>
                             </div>
+
+                            { self.view_nav_ai_prediction(link) }
+
                         </div>
                     </div>
                 </nav>
@@ -373,8 +381,22 @@ impl App {
                     <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(NodeLabel::Check))} >
                         { "Check" }
                     </a>
+                    <a class="navbar-item" onclick={link.callback(|_| AppMsg::ChangeSearchCat(NodeLabel::Area))} >
+                        { "Area" }
+                    </a>
                 </div>
             </div>
+        }
+    }
+
+    fn view_nav_ai_prediction(&self, link: &Scope<Self>) -> Html {
+        html! {
+            <Link<Route> classes={classes!("navbar-item")}
+                            route={Route::AI{ node_info: NodeInfo {label: self.search_cat,
+                                                name: if let Some(v) = &self.search_value
+                                                    { v.clone()} else {self.search_placeholder.clone()}
+                            }} }> { "AI" }
+            </Link<Route>>
         }
     }
 
@@ -711,6 +733,12 @@ fn switch(routes: &Route) -> Html {
         Route::Category { query } => {
             html! { <PageCategory query={*query}/> }
         }
+
+        Route::AI { node_info: NodeInfo { label, name } } => {
+            log::debug!("in switch route AI, label: {:?} name: {:?}", label, name);
+            html! { <Home label={Some(*label)} name={Some(name.clone())} /> }
+        }
+
         Route::NotFound => {
             html! { <PageNotFound /> }
         }

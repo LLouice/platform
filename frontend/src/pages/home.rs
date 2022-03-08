@@ -46,6 +46,7 @@ impl Component for Home {
 }
 
 impl Home {
+    // written during testing
     #[allow(dead_code)]
     fn view_hero() -> Html {
         html! {
