@@ -1,3 +1,4 @@
-tensorflow
+ipython
+tensorflow-gpu == 1.15
 result
 mypy
