@@ -45,7 +45,7 @@ pub fn predict(
 ) -> Result<AdaEPredictionWithName> {
     let adae_input = node_info.into_adae_input(name_id_map)?;
     let prediction = model.predict(adae_input)?;
-    let prediction_with_name = AdaEPredictionWithName::new(prediction, id_name_map);
+    let prediction_with_name = AdaEPredictionWithName::new(prediction, id_name_map).sort();
     Ok(prediction_with_name)
 }
 
@@ -53,6 +53,8 @@ pub fn predict(
 pub struct AdaEPredictionWithName(pub Vec<Vec<(String, f32)>>);
 
 impl AdaEPredictionWithName {
+    const CATS: [&'static str; 5] = ["Disease", "Drug", "Department", "Check", "Area"];
+
     pub fn new(prediction: AdaEPrediction, id_name_map: &HashMap<usize, String>) -> Self {
         AdaEPredictionWithName(
             prediction
@@ -62,6 +64,23 @@ impl AdaEPredictionWithName {
                     x.into_iter()
                         .map(|(idx, conf)| (id_name_map.get(&idx).unwrap().to_owned(), conf))
                         .collect::<Vec<(String, f32)>>()
+                })
+                .collect(),
+        )
+    }
+
+    pub fn sort(self) -> Self {
+        Self(
+            self.0
+                .into_iter()
+                .enumerate()
+                .map(|(i, x)| {
+                    let mut x = x
+                        .into_iter()
+                        .filter(|(name, _)| name.starts_with(Self::CATS[i]))
+                        .collect::<Vec<(String, f32)>>();
+                    x.sort_by(|(_, c1), (_, c2)| c2.partial_cmp(c1).unwrap());
+                    x
                 })
                 .collect(),
         )
