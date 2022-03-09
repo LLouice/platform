@@ -97,6 +97,7 @@ impl AdaEModel {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 

@@ -56,6 +56,7 @@ impl AdaEPredictionWithName {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
