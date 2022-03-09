@@ -44,3 +44,4 @@ AdaptiveE/py/transe.py
 AdaptiveE/w2v/
 
 serving/SavedModel
+/frontend/src/table.html
