@@ -256,6 +256,17 @@ async fn random_sample(
     // Ok(HttpResponse::Ok().json(query))
 }
 
+#[get("/ai/{node_info}")]
+async fn predict(
+    node_info: web::Path<String>,
+) -> Result<HttpResponse, Error> {
+    // let NodeInfo { label, name } = &node_info;
+    let node_info = node_info.parse::<NodeInfo>().map_err(|e| ErrorInternalServerError(e))?;
+
+    log::debug!("predict {}", node_info);
+    Ok(HttpResponse::Ok().body("predict..."))
+}
+
 #[get("/demo")]
 async fn demo() -> Result<fs::NamedFile> {
     eprintln!("RUST_LOG : {:?}", std::env::var("RUST_LOG"));
@@ -404,6 +415,7 @@ async fn main() -> std::io::Result<()> {
             .service(increase_update)
             .service(get_stats)
             .service(random_sample)
+            .service(predict)
             // for debug
             .service(_get_out_links)
             .service(get_in_links)
