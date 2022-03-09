@@ -2,7 +2,7 @@ use crate::data::{NodeInfo, NodeLabel};
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 use serving::{AdaEInput, AdaEModel, AdaEPrediction};
-use std::{collections::HashMap, fs::File, io::BufReader};
+use std::{collections::HashMap, fs::File, io::BufReader, sync::Arc};
 
 pub const NAME_ID_MAP: &str = "name_id_map.json";
 pub const ID_NAME_MAP: &str = "id_name_map.json";
@@ -35,6 +35,18 @@ impl NodeInfo {
         let rel = vec![0, 1, 2, 3, 4];
         Ok(AdaEInput { e1, rel })
     }
+}
+
+pub fn predict(
+    model: Arc<AdaEModel>,
+    node_info: NodeInfo,
+    name_id_map: Arc<HashMap<String, usize>>,
+    id_name_map: Arc<HashMap<usize, String>>,
+) -> Result<AdaEPredictionWithName> {
+    let adae_input = node_info.into_adae_input(name_id_map.as_ref())?;
+    let prediction = model.predict(adae_input)?;
+    let prediction_with_name = AdaEPredictionWithName::new(prediction, id_name_map.as_ref());
+    Ok(prediction_with_name)
 }
 
 #[derive(Debug, Serialize)]
