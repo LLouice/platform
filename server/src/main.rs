@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate platform;
 
+use std::sync::Arc;
 use std::{env, io};
 // use anyhow::Result; use serde::Deserialize;
 use std::collections::HashSet;
@@ -15,19 +16,21 @@ use actix_redis::RedisSession;
 use actix_session::{CookieSession, Session};
 // use actix_sled_session::{Session, SledSession};
 use actix_web::{
-    App,
     error::{ErrorBadRequest, ErrorInternalServerError, InternalError},
-    Error,
     get,
-    http::header, http::StatusCode, HttpRequest, HttpResponse, HttpServer, middleware, post, Responder, Result, web,
+    http::header,
+    http::StatusCode,
+    middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 use futures_util::stream::StreamExt as _;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
+use platform::adae::{self, AdaEPredictionWithName, ID_NAME_MAP, NAME_ID_MAP};
 use platform::data::{NodeInfo, QRandomSample};
 use platform::kg::{self, IncreaseUpdateState, Kg};
 use platform::session::GraphSession;
+use serving::{AdaEInput, AdaEModel, AdaEPrediction};
 
 const GRAPHSESSION: &'static str = "GraphSession";
 
@@ -50,11 +53,7 @@ async fn query_links(
 
     let NodeInfo { label, name } = &node_info;
 
-    let res = Kg::convert_dedup(
-        label,
-        name.as_str(),
-        Kg::query_node_links(&node_info).await,
-    );
+    let res = Kg::convert_dedup(label, name.as_str(), Kg::query_node_links(&node_info).await);
 
     // ugly unpack
     match res {
@@ -147,11 +146,11 @@ async fn get_out_links_d3(
         name.as_str(),
         dbg!(Kg::get_out_links(label, name.as_str()).await),
     )
-        .map(|x| HttpResponse::Ok().json(x))
-        .map_err(|e| {
-            // InternalError::from_response("error", HttpResponse::InternalServerError().finish())
-            ErrorInternalServerError(e)
-        })?;
+    .map(|x| HttpResponse::Ok().json(x))
+    .map_err(|e| {
+        // InternalError::from_response("error", HttpResponse::InternalServerError().finish())
+        ErrorInternalServerError(e)
+    })?;
     Ok(res)
 }
 
@@ -241,12 +240,13 @@ async fn get_stats() -> HttpResponse {
     HttpResponse::Ok().json(res)
 }
 
-
 #[get("/random_sample")]
 async fn random_sample(
-    web::Query(query): web::Query<QRandomSample>) -> Result<HttpResponse, Error> {
+    web::Query(query): web::Query<QRandomSample>,
+) -> Result<HttpResponse, Error> {
     // get query info
-    let res = Kg::random_sample(query).await
+    let res = Kg::random_sample(query)
+        .await
         .map(|x| HttpResponse::Ok().json(x))
         .map_err(|e| {
             // InternalError::from_response("error", HttpResponse::InternalServerError().finish())
@@ -325,7 +325,7 @@ async fn _inspect_post(mut body: web::Payload) -> Result<String> {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // std::env::set_var("RUST_LOG", "actix_web=info");
-    // let workspace_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let workspace_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     // std::env::set_current_dir(workspace_dir)?;
 
     platform::init_env_logger!();
@@ -356,8 +356,26 @@ async fn main() -> std::io::Result<()> {
     let private_key = rand::thread_rng().gen::<[u8; 32]>();
     // let session_backend = SledSession::new_default()?;
 
+    // AI about data
+    let name_id_map = Arc::new(
+        adae::load_name_id_map()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?,
+    );
+    let id_name_map = Arc::new(
+        adae::load_id_name_map()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?,
+    );
+    let model_dir = workspace_dir.join("serving").join(serving::SAVED_MODEL_DIR);
+    let model = Arc::new(
+        AdaEModel::from_dir(model_dir.to_str().unwrap())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?,
+    );
+
     HttpServer::new(move || {
         App::new()
+            .app_data(web::Data::new(name_id_map.clone()))
+            .app_data(web::Data::new(id_name_map.clone()))
+            .app_data(web::Data::new(model.clone()))
             // enable logger
             .wrap(
                 // Cors::default()
@@ -404,8 +422,8 @@ async fn main() -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{App, Error, http, test, web};
     use actix_web::dev::Service;
+    use actix_web::{http, test, web, App, Error};
 
     use super::*;
 

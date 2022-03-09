@@ -4,10 +4,10 @@ use serde::Serialize;
 use serving::{AdaEInput, AdaEModel, AdaEPrediction};
 use std::{collections::HashMap, fs::File, io::BufReader};
 
-const NAME_ID_MAP: &str = "name_id_map.json";
-const ID_NAME_MAP: &str = "id_name_map.json";
+pub const NAME_ID_MAP: &str = "name_id_map.json";
+pub const ID_NAME_MAP: &str = "id_name_map.json";
 
-fn load_name_id_map() -> Result<HashMap<String, usize>> {
+pub fn load_name_id_map() -> Result<HashMap<String, usize>> {
     let name_id_map: HashMap<String, usize> = {
         let reader = BufReader::new(File::open(NAME_ID_MAP)?);
         serde_json::from_reader(reader)?
@@ -16,7 +16,7 @@ fn load_name_id_map() -> Result<HashMap<String, usize>> {
     Ok(name_id_map)
 }
 
-fn load_id_name_map() -> Result<HashMap<usize, String>> {
+pub fn load_id_name_map() -> Result<HashMap<usize, String>> {
     let id_name_map: HashMap<usize, String> = {
         let reader = BufReader::new(File::open(ID_NAME_MAP)?);
         serde_json::from_reader(reader)?
