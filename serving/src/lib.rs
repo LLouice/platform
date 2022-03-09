@@ -6,16 +6,17 @@ use tensorflow::{
     DEFAULT_SERVING_SIGNATURE_DEF_KEY, PREDICT_INPUTS, PREDICT_OUTPUTS,
 };
 
-const SAVED_MODEL_DIR: &str = "SavedModel";
+pub const SAVED_MODEL_DIR: &str = "SavedModel";
+pub const THRESHOLD: f32 = 0.5;
 
 #[derive(Debug)]
-pub struct AdaEInput(Vec<f32>);
+pub struct AdaEInput {
+    pub e1: Vec<i64>,
+    pub rel: Vec<i64>,
+}
 
-// #[derive(Debug, Serialize)]
-// pub struct AdaEPrediction {
-//     pub label: u8,
-//     pub confidence: f32,
-// }
+#[derive(Debug, Serialize)]
+pub struct AdaEPrediction(pub Vec<Vec<(usize, f32)>>);
 
 #[derive(Debug)]
 pub struct AdaEModel {
@@ -62,29 +63,38 @@ impl AdaEModel {
         })
     }
 
-    /*
-    pub fn predict(&self, image: AdaEInput) -> Result<AdaEPrediction> {
-        const INPUT_DIMS: &[u64] = &[1, 28, 28, 1];
-        let input_tensor = Tensor::<f32>::new(INPUT_DIMS).with_values(&image.0)?;
+    // now the length is fixed at 5
+    pub fn predict(&self, input: AdaEInput) -> Result<AdaEPrediction> {
+        let AdaEInput { e1, rel } = input;
+        let input_e1_tensor = Tensor::<i64>::new(&[e1.len() as u64]).with_values(e1.as_slice())?;
+        let input_rel_tensor =
+            Tensor::<i64>::new(&[rel.len() as u64]).with_values(rel.as_slice())?;
+
         let mut run_args = SessionRunArgs::new();
-        run_args.add_feed(&self.input_op, self.input_index, &input_tensor);
+
+        run_args.add_feed(&self.input_e1_op, self.input_e1_index, &input_e1_tensor);
+        run_args.add_feed(&self.input_rel_op, self.input_rel_index, &input_rel_tensor);
         let output_fetch = run_args.request_fetch(&self.output_op, self.output_index);
         self.bundle.session.run(&mut run_args)?;
 
         let output = run_args.fetch::<f32>(output_fetch)?;
-        let mut confidence = 0f32;
-        let mut label = 0u8;
-        for i in 0..output.dims()[1] {
-            let conf = output[i as usize];
-            if conf > confidence {
-                confidence = conf;
-                label = i as u8;
-            }
-        }
+        let dims = output.dims();
+        let i = dims[0];
+        let j = dims[1];
 
-        Ok(AdaEPrediction { label, confidence })
+        let mut prediction = Vec::with_capacity(output.dims()[0] as usize);
+        for ii in 0..i {
+            let mut row = Vec::new();
+            for jj in 0..j {
+                let conf = output.get(&[ii, jj]);
+                if conf > THRESHOLD {
+                    row.push((jj as usize, conf));
+                }
+            }
+            prediction.push(row);
+        }
+        Ok(AdaEPrediction(prediction))
     }
-    */
 }
 
 mod tests {
