@@ -4,7 +4,7 @@ extern crate platform;
 use std::sync::Arc;
 use std::{env, io};
 // use anyhow::Result; use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::future::Future;
 
 use actix_cors::Cors;
@@ -258,13 +258,18 @@ async fn random_sample(
 
 #[get("/ai/{node_info}")]
 async fn predict(
+    model: web::Data<AdaEModel>,
     node_info: web::Path<String>,
+    id_name_map: web::Data<HashMap<usize, String>>,
+    name_id_map: web::Data<HashMap<String, usize>>,
 ) -> Result<HttpResponse, Error> {
-    // let NodeInfo { label, name } = &node_info;
     let node_info = node_info.parse::<NodeInfo>().map_err(|e| ErrorInternalServerError(e))?;
-
     log::debug!("predict {}", node_info);
-    Ok(HttpResponse::Ok().body("predict..."))
+
+    let prediction = adae::predict(model.get_ref(), node_info,name_id_map.get_ref(),id_name_map.get_ref()).map_err(|e| ErrorInternalServerError(e))?;
+    log::debug!("prediction {:#?}", prediction);
+
+    Ok(HttpResponse::Ok().json(prediction))
 }
 
 #[get("/demo")]
@@ -384,9 +389,9 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(name_id_map.clone()))
-            .app_data(web::Data::new(id_name_map.clone()))
-            .app_data(web::Data::new(model.clone()))
+            .app_data(web::Data::from(name_id_map.clone()))
+            .app_data(web::Data::from(id_name_map.clone()))
+            .app_data(web::Data::from(model.clone()))
             // enable logger
             .wrap(
                 // Cors::default()

@@ -38,14 +38,14 @@ impl NodeInfo {
 }
 
 pub fn predict(
-    model: Arc<AdaEModel>,
+    model: &AdaEModel,
     node_info: NodeInfo,
-    name_id_map: Arc<HashMap<String, usize>>,
-    id_name_map: Arc<HashMap<usize, String>>,
+    name_id_map: &HashMap<String, usize>,
+    id_name_map: &HashMap<usize, String>,
 ) -> Result<AdaEPredictionWithName> {
-    let adae_input = node_info.into_adae_input(name_id_map.as_ref())?;
+    let adae_input = node_info.into_adae_input(name_id_map)?;
     let prediction = model.predict(adae_input)?;
-    let prediction_with_name = AdaEPredictionWithName::new(prediction, id_name_map.as_ref());
+    let prediction_with_name = AdaEPredictionWithName::new(prediction, id_name_map);
     Ok(prediction_with_name)
 }
 
