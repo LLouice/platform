@@ -43,5 +43,5 @@ AdaptiveE/py/tensorboard.txt
 AdaptiveE/py/transe.py
 AdaptiveE/w2v/
 
-serving/SavedModel
+serving/SavedModel/*
 /frontend/src/table.html
